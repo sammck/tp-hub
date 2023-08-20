@@ -1,0 +1,147 @@
+version: "3.3"
+
+services:
+
+  traefik:
+    # The traefik reverse proxy.
+    #
+    #  Configured to:
+    #
+    #    Use docker network "traefik" for backend connections to services behind the reverse-proxy
+    #    Use lets-encrypt to automatically issue and renew SSL certificates. Persistence of lets-encrypt
+    #      certificate state is kept in docker volume "traefik_acme", which should never be deleted.
+    #    Serves public http:// on port 7080 (entrypoint "web").  This is port-forwarded to this host from my home's public IP
+    #      address (on port 80) via eero port forwarding. This port is also used by lets-encrypt to verify that I have ownership of
+    #      the server behind a DNS name when a new SSL certificate is issued.
+    #    Serves public https:// on port 7443 (entrypoint "websecure"). This is port-forwarded to this host from my home's public IP
+    #      address (on port 443) via eero port forwarding. Each hostname routed to this entrypoint is included in the SSL certificate(s) created
+    #      by lets-encrypt. The Host rule's hostname MUST have a record in DNS that resolves to my home's public IP address before
+    #      a valid SSL certificate can be created.
+    #    Serves private (internal LAN only) http:// on port 80 (entrypoint "lanweb"). This port should NOT be exposed to the internet 
+    #    Serves private (internal LAN only) https:// on port 443 (entrypoint "lansecureweb"). A self-signed certificate
+    #      is used (not a valid certificate). This port should NOT be exposed to the internet.
+    #    Serves an insecure Traefik dashboard on http://<this-host>:8080/. This port should NOT be exposed to the internet.
+    #
+    container_name: "traefik"
+    image: "traefik:v2.10"
+    networks:
+      - traefik
+    restart: always
+    command:
+      - "--log.level=DEBUG"
+      - "--accesslog=true"
+      - "--api.dashboard=true"                       # Run a traefik dashboard on http://<this-host>:8080
+      - "--api.insecure=true"                        # dashboard is unsecured http
+      - "--api.debug=true"
+      - "--providers.docker=true"                    # Monitor docker container creation and automatically reverse-proxy to configured containers
+      - "--providers.docker.network=traefik"         # Connect to proxied backend service containers through the "traefik" docker network. This ensures that
+                                                     # there will be an IP route to the container's IP address if the container is on multiple
+                                                     # networks.  Without it, traefik may pick an IP address of the container that is on another
+                                                     # docker network which is not reachable from traefik's container.
+      - "--providers.docker.exposedbydefault=false"  # require a "traefik.enable=true" label on containers behind reverse-proxy
+      - "--entrypoints.web.address=:80"              # Public http:// entrypoint
+      # Following 2 lines will auto-redirect all HTTP on 80 to https on 443 for all routers.
+      # Should only be used if no containers will ever serve http directly."
+      # - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      # - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"                                 # Public https:// entrypoint
+      - "--entrypoints.websecure.http.tls.certResolver=myresolver"             # port 443 uses lets-encrypt ACME tls resolver
+      - "--certificatesresolvers.myresolver.acme.email=${LETSENCRYPT_OWNER_EMAIL}"
+                                                                               # tell lets-encrypt who owns the DNS domain
+      - "--certificatesresolvers.myresolver.acme.storage=/acme/acme.json"      # ACME state must be preserved so we put it in a Docker volume
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"           # Use HTTP challenge protocol to verify ownership to lets-encrypt.
+                                                                               #    lets-encrypt will send a challenge to http:<dns-name>:80/..."
+                                                                               #    and traefik will respond with credentials. Then the cert will be issued.
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web" # Use PUBLIC port 80 for ACME http challenges
+      - "--entrypoints.lanweb.address=:8480"                                   # Private LAN-only http:// entrypoint. Exposed to LAN on port 80.
+      - "--entrypoints.lanwebsecure.address=:8443"                             # Private https:// entrypoint. Exposed to LAN on port 443
+      - "--entrypoints.lanwebsecure.http.tls.certResolver=myresolver"          # port 8443 uses a separate tls resolver
+      - "--certificatesresolvers.lanresolver.acme.email=${LETSENCRYPT_OWNER_EMAIL}"
+      - "--certificatesresolvers.lanresolver.acme.storage=/acme/lanacme.json"  # ACME state must be preserved so we put it in a Docker volume
+      - "--certificatesresolvers.lanresolver.acme.httpchallenge=true"          # Use HTTP challenge protocol to verify ownership of private domains to lets-encrypt.
+                                                                               #    lets-encrypt will send a challenge to http:<dns-name>:80/..."
+                                                                               #    and traefik will respond with credentials. Then the cert will be issued.
+      - "--certificatesresolvers.lanresolver.acme.httpchallenge.entrypoint=web" # Use PUBLIC port 80 for ACME http challenges even for private domains. For this
+                                                                               #   to work, there must be a public DNS record that resolves to my home IP address.
+                                                                               #   The host won't be reachable through the internet though, so clients will have
+                                                                               #   to have the local LAN IP address of this host in their /etc/hosts, or have
+                                                                               #   a LAN-local DNS server that gives the local IP address
+    ports:
+      - "7080:80"     # Endpoint "web" -- Public http (exposed to internet on port 80 through eero port forwarding)
+      - "7443:443"    # Endpoint "secureweb" -- Public https (exposed to internet on port 443 through eero port forwarding)
+      - "80:8480"     # Endpoint "lanweb" -- Private http (exposed only to LAN)
+      - "443:8443"    # Endpoint "lanwebsecure" -- Private https (exposed only to LAN). self-signed SSL certificate.
+      - "8080:8080"   # Traefik http://<this-host>:8080/ dashboard. Insecure--do NOT expose to internet
+    volumes:
+      - "/etc/localtime:/etc/localtime:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "traefik_acme:/acme"
+
+
+  whoami:
+    # A simple HTTP service that returns harmless information about the HTTP request. Useful
+    # For debugging connectivity and traefik configuration issues"
+    # This instance serves whoami.${TRAEFIK_DNS_DOMAIN} and automatically redirects http:// requests
+    # to https://
+    image: "traefik/whoami"
+    networks:
+      - traefik
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami-http.entrypoints=web"
+      - "traefik.http.routers.whoami-http.rule=Host(`whoami.${TRAEFIK_DNS_DOMAIN}`)"
+      - "traefik.http.routers.whoami-http.middlewares=whoami-https"
+      - "traefik.http.middlewares.whoami-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.${TRAEFIK_DNS_DOMAIN}`)"
+
+  lan-whoami:
+    # A simple HTTP service that returns harmless information about the HTTP request. Useful
+    # For debugging connectivity and traefik configuration issues"
+    # This instance serves http://lan-whoami.${TRAEFIK_DNS_DOMAIN}, https://lan-whoami.${TRAEFIK_DNS_DOMAIN},
+    #     and http://<any-hostname>/lan-whoami requests, on the local LAN.  It is not visible to the internet.
+    image: "traefik/whoami"
+    networks:
+      - traefik
+    restart: always
+    labels:
+      - "traefik.enable=true"
+
+      # A router for http://lan-whoami.${TRAEFIK_DNS_DOMAIN} that only responds to LAN-local requests
+      # For this to work, clients need to add an entry to /etc/hosts, or there must be a LAN-local DNS
+      # server that returns this host's intranet IP address for lan-whoami.${TRAEFIK_DNS_DOMAIN}
+      - "traefik.http.routers.lan-whoami-http.entrypoints=lanweb"
+      - "traefik.http.routers.lan-whoami-http.rule=Host(`lan-whoami.${TRAEFIK_DNS_DOMAIN}`)"
+      # Following 2 lines would force a redirect to https on this route--useful for services that should be https-only
+      # - "traefik.http.routers.lan-whoami-http.middlewares=lan-whoami-https"
+      # - "traefik.http.middlewares.lan-whoami-https.redirectscheme.scheme=https"
+
+      # A router for https://lan-whoami.${TRAEFIK_DNS_DOMAIN} that only responds to LAN-local requests
+      # For this to work, clients need to add an entry to /etc/hosts, or there must be a LAN-local DNS
+      # server that returns this host's intranet IP address for lan-whoami.${TRAEFIK_DNS_DOMAIN}
+      - "traefik.http.routers.lan-whoami.entrypoints=lanwebsecure"
+      - "traefik.http.routers.lan-whoami.rule=Host(`lan-whoami.${TRAEFIK_DNS_DOMAIN}`)"
+
+      # A router for http://<any-hostname>/lan-whoami that only responds to LAN-local requests
+      - "traefik.http.routers.lan-whoami-path.entrypoints=lanweb"
+      - "traefik.http.routers.lan-whoami-path.rule=PathPrefix(`/lan-whoami`)"
+      # Following 2 lines strip off the /lan-whoami prefix before forwarding to the whoami service
+      - "traefik.http.routers.lan-whoami-path.middlewares=lan-whoami-prefix"
+      - "traefik.http.middlewares.lan-whoami-prefix.stripPrefix.prefixes=/lan-whoami"
+
+networks:
+  traefik:
+    # The backend network used for reverse-proxy request forwarding. All containers
+    # that provide HTTP services behind the traefik reverse-proxy should be placed in
+    # this network (normally serving on port 80). It is not necessary for containers
+    # behind the reverse-proxy to expose their HTTP port to the host.
+    external: true
+
+volumes:
+  traefik_acme:
+    # Volume that contains acme.json, cached issued certificates from lets-encrypt
+    # It is very important that this data is not deleted and survives rebuild/restart
+    # of traefik; lets-encrypt will block you for a period of time if you request
+    # reissuance of certificates that are not due for renewal.
+    external: true

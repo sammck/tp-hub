@@ -1,0 +1,72 @@
+version: "3"
+services:
+  portainer_agent:
+    # A portainer agent that provides access to docker on the local host.
+    # also allows docker volumes to be browsed and edited. Only used by
+    # portainer
+    image: portainer/agent:2.18.4
+    environment:
+      # REQUIRED: Should be equal to the service name prefixed by "tasks." when
+      # deployed inside an overlay network
+      AGENT_CLUSTER_ADDR: tasks.portainer-agent
+      # AGENT_PORT: 9001
+      LOG_LEVEL: DEBUG
+      AGENT_SECRET: ${PORTAINER_AGENT_SECRET}   # allows portainer to authenticate to the agent
+    ports:
+      # The agent needs to be reachable on port 9001, but only within the stack.
+      # So no need to expose.  The agent is added to portainer with the address
+      # "portainer_agent: 9001"     
+      # - 9001:9001
+      []
+    volumes:
+      - portainer_data:/data                              # Persistent data for the agent
+      - /var/run/docker.sock:/var/run/docker.sock         # Allows the agent to control docker on the local host
+      - /var/lib/docker/volumes:/var/lib/docker/volumes   # Allows portainer UI browsing of and upload to docker volumes
+      - /:/host                                           # Allows portainer UI browsing of entire host filesystem
+    networks:
+      - portainer_agent     # allows portainer to see the agent. Nothing else needs access
+    restart: always
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    environment:
+      # AGENT_PORT: 9001
+      LOG_LEVEL: DEBUG
+      AGENT_SECRET: ${PORTAINER_AGENT_SECRET}    # allows portainer to authenticate to the agent
+    ports:
+      # - 9000:9000  # HTTP UI.  Not secure. should only be exposed behind reverse-proxy. No need to expose to host.
+      - 8000:8000    # SSH tunnel entrypoint; used by edge portainer agents to connect to portainer server
+      # - 9443:9443  # HTTPS UI. No need to expose to host since traefik exposes 9000 via lanwebsecure.
+    volumes:
+      - portainer_data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - traefik           # allows traefik to forward requests to portainer
+      - portainer_agent   # allows portainer to connect to the local portainer agent on port 9001
+    labels:
+      # expose Portainer web UI (port 9000 in the container) behind the traefik reverse-proxy (LAN only) at https://portainer.${TRAEFIK_DNS_DOMAIN}.
+      # The client will need to add a /etc/hosts entry to point portainer.${TRAEFIK_DNS_DOMAIN} at this host's LAN IP.
+      - "traefik.enable=true"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"     # Port 9000 is reverse-proxied
+      - "traefik.http.routers.portainer-http.entrypoints=lanweb"
+      - "traefik.http.routers.portainer-http.rule=Host(`portainer.${TRAEFIK_DNS_DOMAIN}`)"
+      # Following 2 lines force a redirect from http to https on this service
+      - "traefik.http.routers.portainer-http.middlewares=portainer-https"
+      - "traefik.http.middlewares.portainer-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.portainer.entrypoints=lanwebsecure"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.${TRAEFIK_DNS_DOMAIN}`)"
+    restart: always
+
+volumes:
+  portainer_data:
+    # Persistent data for portainer. Includes sensitive data suct as portainer database, authorized user credential metadata, etc.
+    external: true
+
+networks:
+  traefik:
+    # Traefik's docker network.  Allows traefik to forward HTTP requests to backend services. Any
+    # service behind the traefik reverse-proxy must be in at least this network.
+    external: true
+  portainer_agent:
+    # a backend network that allows portainer to connect to the local portainer_agent service. Nothing
+    # else needs to connect to it.
