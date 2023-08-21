@@ -21,12 +21,6 @@ Table of contents
 * [License](#license)
 * [Authors and history](#authors-and-history)
 
-> **Note**
-> This is a note
-
-> **Warning**
-> This is a warning
-
 Introduction
 ------------
 
@@ -96,13 +90,10 @@ receive `404 page not found`), but the service will receive a proper SSL certifi
 be used from inside the LAN if the client overrides public DNS with `/etc/hosts` or with a LAN-local
 DNS server (see below).
 
-{% note %}
-
-**Note:** It is not a good idea to expose the Traefik dashboard directly to the Internet; though
-it is read-only and does not directly expose secrets, it is not authenticated and it reveals a lot
-of information about configuration that could make an attacker's job easier.
-
-{% endnote %}
+> **Note**
+> It is not a good idea to expose the Traefik dashboard directly to the Internet; though
+> it is read-only and does not directly expose secrets, it is not authenticated and it reveals a lot
+> of information about configuration that could make an attacker's job easier.
 
 ## Create a CNAME record for your Portainer web interface
 Create another CNAME record `portainer.${DNS_DOMAIN}` that points to `home.${DNS_DOMAIN}`. This will allow
@@ -112,15 +103,12 @@ receive `404 page not found`), but the service will receive a proper SSL certifi
 be used from inside the LAN if the client overrides public DNS with `/etc/hosts` or with a LAN-local
 DNS server (see below).
 
-{% note %}
-
-**Note:** Though thousands of users have done so, Portainer does not recommend exposing the Portainer
-UI directly to the Internet. It does have username/password authentication, multi-user support, and ACLs,
-so in theory it is OK. But placing it on the Internet exposes a bigger attack surface, and if Portainer is
-compromised then the attacker can launch any docker container (even privileged containers) and easily root
-the hub-host, and from there attempt to attack other hosts inside your LAN.
-
-{% endnote %}
+> **Note**
+> Though thousands of users have done so, Portainer does not recommend exposing the Portainer
+> UI directly to the Internet. It does have username/password authentication, multi-user support, and ACLs,
+> so in theory it is OK. But placing it on the Internet exposes a bigger attack surface, and if Portainer is
+> compromised then the attacker can launch any docker container (even privileged containers) and easily root
+> the hub-host, and from there attempt to attack other hosts inside your LAN.
 
 ## Configure port forwarding on your gateway router
 Your network's gateway router must be configured to forward public TCP ports 80 and 443 to the hub host's stable
@@ -161,12 +149,9 @@ cd ~/rpi-home-hub
 ```
 If required, you will be prompted for your `sudo` password.
 
-{% note %}
-
-**Note:** If you were not already in the `docker` security group when you started the current login session, you will
-be added, but the change will not take effect until you log out and log back in again.
-
-{% endnote %}
+> **Note**
+> If you were not already in the `docker` security group when you started the current login session, you will
+> be added, but the change will not take effect until you log out and log back in again.
 
 ## Configuring the environment
 
@@ -194,12 +179,9 @@ with public SSL certificates issued by lets-encrypt.
 
 Next, start the Traefik reverse-proxy. To perform this step, the user must be in the `docker` security group.
 
-{% note %}
-
-**Note:** If you were not already in the `docker` security group when you started the current login session, you were
-added by `install-prereqs.sh, but the change will not take effect until you log out and log back in again.
-
-{% endnote %}
+> **Note**
+> If you were not already in the `docker` security group when you started the current login session, you were
+> added by `install-prereqs.sh`, but the change will not take effect until you log out and log back in again.
 
 
 ```bash
