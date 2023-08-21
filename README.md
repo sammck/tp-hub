@@ -15,9 +15,6 @@ Table of contents
 
 * [Introduction](#introduction)
 * [Installation](#installation)
-* [Usage](#usage)
-  * [Command line](#command-line)
-  * [API](api)
 * [Known issues and limitations](#known-issues-and-limitations)
 * [Getting help](#getting-help)
 * [Contributing](#contributing)
