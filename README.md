@@ -21,6 +21,11 @@ Table of contents
 * [License](#license)
 * [Authors and history](#authors-and-history)
 
+> **Note**
+> This is a note
+
+> **Warning**
+> This is a warning
 
 Introduction
 ------------
