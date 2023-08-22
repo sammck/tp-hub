@@ -76,6 +76,7 @@ if [ -z "$_ABORT" ]; then
       export PYTHONPATH="$_SCRIPT_DIR/python:$PYTHONPATH"
     fi
   fi
+fi
 
 if [ -z "$_ABORT" ]; then
   if [ -z "$_SOURCED" ]; then
