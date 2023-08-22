@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+
+import sys
+import dotenv
+import argparse
+import json
+import ndjson
+
+from typing import Dict, List
+
+import project_init_tools
+from project_init_tools.internal_types import Jsonable, JsonableDict, JSonableList
+from project_init_tools.installer.docker import install_docker
+from project_init_tools.installer.docker_compose import install_docker_compose
+from project_init_tools.util import (
+    sudo_check_call_stderr_exception,
+    sudo_check_output_stderr_exception,
+)
+
+def docker_call(args: List[str]) -> None:
+    """
+    Call docker with the given arguments
+    """
+    sudo_check_call_stderr_exception(["docker"] + args, run_with_group="docker")
+
+def docker_call_output(args: List[str]) -> str:
+    """
+    Call docker with the given arguments and return the output
+    """
+    result_bytes: bytes = sudo_check_output_stderr_exception(
+        ["docker"] + args, run_with_group="docker"
+    )
+    return result_bytes.decode("utf-8")
+
+
+def get_docker_networks() -> Dict[str, JsonableDict]:
+    """
+    Get all docker networks
+    """
+    data_json = docker_call_output(
+        ["network", "ls", "--format", "json"],
+        run_with_group="docker",
+      )
+    data: List[JsonableDict] = ndjson.loads(data_json)
+    assert isinstance(data, list)
+    result: Dict[str, JsonableDict] = { network["Name"]: network for network in data }
+    return result
+
+def get_docker_volumes() -> Dict[str, JsonableDict]:
+    """
+    Get all docker volumes
+    """
+    data_json = docker_call_output(
+        ["volume", "ls", "--format", "json"],
+        run_with_group="docker",
+      )
+    data: List[JsonableDict] = ndjson.loads(data_json)
+    assert isinstance(data, list)
+    result: Dict[str, JsonableDict] = { volume["Name"]: volume for volume in data }
+    return result
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Install prerequisites for this project")
+    parser.add_argument("--force". "-f", action="store_true", help="Force clean installation of prerequisites")
+
+    args = parser.parse_args()
+
+    force: bool = args.force
+
+    # Install docker
+    if not project_init_tools.installer.docker.docker_is_installed() or args.force:
+        install_docker(force=force)
+
+    # Install docker-compose
+    if not project_init_tools.installer.docker_compose.docker_compose_is_installed() or args.force:
+        install_docker_compose(force=force)
+
+    # Create the "traefik" network if it doesn't exist:
+    docker_networks = get_docker_networks()
+    if "traefik" not in docker_networks:
+        docker_call(["network", "create", "traefik"])
+
+    # Create The "traefik_acme" volume if it doesn't exist:
+    docker_volumes = get_docker_volumes()
+    if "traefik_acme" not in docker_volumes:
+        docker_call(["volume", "create", "traefik_acme"])
+
+    # Create the "portainer_data" volume if it doesn't exist:
+    if "portainer_data" not in docker_volumes:
+        docker_call(["volume", "create", "portainer_data"])
+
+    print("Prerequisites installed successfully", file=sys.stderr)
+
+
+
+if __name__ == "__main__":
+    rc = main()
+    sys.exit(rc)
