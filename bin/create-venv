@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# Creates the project python virtualenv.
+# -f option forces rebuild
+
+set -e
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+FORCE=
+if [ "$1" == "-f" ]; then
+   FORCE=1
+   shift
+fi
+
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+BUILD_DIR="$PROJECT_DIR/build"
+VENV="$BUILD_DIR/.venv"
+
+if [ -n "$FORCE" ]; then
+  rm -fr "$VENV"
+fi
+
+if ! command -v pip3 &>/dev/null; then
+  echo "sudo is required to install python3-pip" >&2
+  sudo apt-get install python3-pip
+fi
+
+if [ ! -d "$VENV" ]; then
+  if ! command -v virtualenv &>/dev/null; then
+    pip3 install --user virtualenv >&2
+  fi
+  mkdir -p "$_BUILD_DIR"
+  virtualenv "$_VENV" 1>&2
+  "$_VENV/bin/pip" install --upgrade pip >&2
+  "$_VENV/bin/pip" install --upgrade -r "$_SCRIPT_DIR/requirements.txt" >&2
+fi
+
+# Activate the python virtualenv. This adds .venv/bin to PATH and exports PYTHON_VIRTUALENV
+. "$_VENV/bin/activate"
+
+# add python dir to PYTHONPATH
+if [ -z "$PYTHONPATH" ]; then
+  export PYTHONPATH="$_SCRIPT_DIR/python"
+else
+  if [ ":$PYTHONPATH:" != *":$_SCRIPT_DIR/python:"* ]; then
+    export PYTHONPATH="$_SCRIPT_DIR/python:$PYTHONPATH"
+  fi
+fi
+
+if [ -z "$_SOURCED" ]; then
+  # We are not being sourced and arguments were provided.  Run them as a command
+  "$@" || exit $?
+fi
+
+unset _VENV
+unset _BUILD_DIR
+unset _SOURCED
+unset _SCRIPT_DIR
