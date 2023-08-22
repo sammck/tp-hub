@@ -22,6 +22,11 @@ _VENV="$_BUILD_DIR/.venv"
 # detect if we are being sourced
 (return 0 2>/dev/null) && _SOURCED=1 || _sourced=
 
+if [ -z "$_SOURCED" ]; then
+  # running as a standalone script (not sourced). Errors should abort the script
+  set -e
+fi
+
 # add "$HOME/.local/bin" to the PATH
 if [ ":$PATH:" != *":$HOME/.local/bin:"* ]; then
   PATH="$HOME/.local/bin:$PATH"
@@ -33,9 +38,6 @@ if [ ! -d "$_VENV" ]; then
 fi
 
 if [ -z "$_SOURCED" ]; then
-  # running as a standalone script (not sourced). Errors should abort the script
-  set -e
-
   if [ -z "$1" ]; then
     # No arguments -- run a child bash shell and source this script into it
     # This trick allows environment attributes that are not passed to child processes
