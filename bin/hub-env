@@ -46,6 +46,7 @@ if [ -z "$_ABORT" ]; then
       # (like the prompt string) to be initialized in the interactive child shell.
       # Note that when we use --init-file we are replacing ~/.bashrc so we have to source
       # it as well.
+      echo "Launching hub-env bash shell..." >&2
       bash --init-file <(echo ". \"$HOME/.bashrc\"; . \"$_SCRIPT_DIR/hub-env\"") || exit $?
       exit 0
     fi
