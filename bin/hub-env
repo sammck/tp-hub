@@ -6,6 +6,7 @@
 # a standalone script to create the virtualenv if it does not exist.
 # If run as a standalone script and arguments are supplied; runs the
 # arguments as a commandline within the activated environment.
+# If run as a standalone shell with no arguments, bash is run inside the environment
 
 #   - creates a python virtualenv if necessary and activates it.
 #   - adds <project>/bin directory to PATH
@@ -13,15 +14,28 @@
 #   - adds <project>/bin/python to PYTHONPATH
 #   - exports PROJECT_DIR.
 
+_SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 # detect if we are being sourced
 (return 0 2>/dev/null) && _SOURCED=1 || _sourced=
 
+
 if [ -z "$_SOURCED" ]; then
+  # running as a standalone script (not sourced). Errors should abort the script
   set -e
+
+  if [ -z "$1" ]; then
+    # No arguments -- run a child bash shell and source this script into it
+    # This trick allows environment attributes that are not passed to child processes
+    # (ike the prompt string) to work.
+    # Note that when we use --init-file we are replacing ~/.bashrc so we have to source
+    # it as well
+    bash --init-file <(echo ". \"$HOME/.bashrc\"; . \"$_SCRIPT_DIR/hub-env\"") || exit $?
+    exit 0
+  fi
 fi
 
 
-_SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 export PROJECT_DIR="$(dirname "$_SCRIPT_DIR")"
 _BUILD_DIR="$PROJECT_DIR/build"
@@ -60,11 +74,9 @@ else
   fi
 fi
 
-# If not being sourced, and arguments are provided, run them as a command
 if [ -z "$_SOURCED" ]; then
-  if [ -n "$1" ]; then
-    "$@" || exit $?
-  fi
+  # We are not being sourced and arguments were provided.  Run them as a command
+  "$@" || exit $?
 fi
 
 unset _VENV
