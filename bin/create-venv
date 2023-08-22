@@ -21,6 +21,11 @@ if [ -n "$FORCE" ]; then
   rm -fr "$VENV"
 fi
 
+# add "$HOME/.local/bin" to the PATH
+if [ ":$PATH:" != *":$HOME/.local/bin:"* ]; then
+  PATH="$HOME/.local/bin:$PATH"
+fi
+
 if ! command -v pip3 &>/dev/null; then
   echo "sudo is required to install python3-pip" >&2
   sudo apt-get install python3-pip

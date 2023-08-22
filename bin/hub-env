@@ -22,6 +22,11 @@ _VENV="$_BUILD_DIR/.venv"
 # detect if we are being sourced
 (return 0 2>/dev/null) && _SOURCED=1 || _sourced=
 
+# add "$HOME/.local/bin" to the PATH
+if [ ":$PATH:" != *":$HOME/.local/bin:"* ]; then
+  PATH="$HOME/.local/bin:$PATH"
+fi
+
 # create virtualenv if it does not exist
 if [ ! -d "$_VENV" ]; then
   "$_SCRIPT_DIR/create-venv"
