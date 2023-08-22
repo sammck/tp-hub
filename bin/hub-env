@@ -19,6 +19,7 @@ PROJECT_DIR="$(dirname "$_SCRIPT_DIR")"
 _BUILD_DIR="$PROJECT_DIR/build"
 _VENV="$_BUILD_DIR/.venv"
 _ABORT=
+_OLD_PS1="$PS1"
 
 # detect if we are being sourced
 (return 0 2>/dev/null) && _SOURCED=1 || _sourced=
@@ -77,7 +78,13 @@ if [ -z "$_ABORT" ]; then
       export PYTHONPATH="$_SCRIPT_DIR/python:$PYTHONPATH"
     fi
   fi
+
+  # Create a custom prompt string
+  # If you like, you can put code in .bashrc to restore PS1 to "$STICKY_PS1" if it is set.
+  export STICKY_PS1="(hub-env) $_OLD_PS1"
+  PS1="$STICKY_PS1"
 fi
+
 
 if [ -z "$_ABORT" ]; then
   if [ -z "$_SOURCED" ]; then
@@ -93,6 +100,7 @@ if [ -n "$_ABORT" ]; then
   fi
 fi
 
+unset _OLD_PS1
 unset _ABORT
 unset _VENV
 unset _BUILD_DIR
