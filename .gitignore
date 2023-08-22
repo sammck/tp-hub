@@ -2,3 +2,6 @@
 .venv/
 /build/
 /trash/
+*.pyc
+__pycache__/
+
