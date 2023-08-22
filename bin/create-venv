@@ -30,30 +30,8 @@ if [ ! -d "$VENV" ]; then
   if ! command -v virtualenv &>/dev/null; then
     pip3 install --user virtualenv >&2
   fi
-  mkdir -p "$_BUILD_DIR"
-  virtualenv "$_VENV" 1>&2
-  "$_VENV/bin/pip" install --upgrade pip >&2
-  "$_VENV/bin/pip" install --upgrade -r "$_SCRIPT_DIR/requirements.txt" >&2
+  mkdir -p "$BUILD_DIR"
+  virtualenv "$VENV" 1>&2
+  "$VENV/bin/pip" install --upgrade pip >&2
+  "$VENV/bin/pip" install --upgrade -r "$SCRIPT_DIR/requirements.txt" >&2
 fi
-
-# Activate the python virtualenv. This adds .venv/bin to PATH and exports PYTHON_VIRTUALENV
-. "$_VENV/bin/activate"
-
-# add python dir to PYTHONPATH
-if [ -z "$PYTHONPATH" ]; then
-  export PYTHONPATH="$_SCRIPT_DIR/python"
-else
-  if [ ":$PYTHONPATH:" != *":$_SCRIPT_DIR/python:"* ]; then
-    export PYTHONPATH="$_SCRIPT_DIR/python:$PYTHONPATH"
-  fi
-fi
-
-if [ -z "$_SOURCED" ]; then
-  # We are not being sourced and arguments were provided.  Run them as a command
-  "$@" || exit $?
-fi
-
-unset _VENV
-unset _BUILD_DIR
-unset _SOURCED
-unset _SCRIPT_DIR

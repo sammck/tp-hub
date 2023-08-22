@@ -15,10 +15,17 @@
 #   - exports PROJECT_DIR.
 
 _SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+PROJECT_DIR="$(dirname "$_SCRIPT_DIR")"
+_BUILD_DIR="$PROJECT_DIR/build"
+_VENV="$_BUILD_DIR/.venv"
 
 # detect if we are being sourced
 (return 0 2>/dev/null) && _SOURCED=1 || _sourced=
 
+# create virtualenv if it does not exist
+if [ ! -d "$_VENV" ]; then
+  "$_SCRIPT_DIR/create-venv"
+fi
 
 if [ -z "$_SOURCED" ]; then
   # running as a standalone script (not sourced). Errors should abort the script
@@ -35,10 +42,7 @@ if [ -z "$_SOURCED" ]; then
   fi
 fi
 
-
-
-export PROJECT_DIR="$(dirname "$_SCRIPT_DIR")"
-_BUILD_DIR="$PROJECT_DIR/build"
+export PROJECT_DIR
 
 # add project bin dir to path
 if [ ":$PATH:" != *":$_SCRIPT_DIR:"* ]; then
@@ -48,18 +52,6 @@ fi
 # add project env-bin dir to path
 if [ ":$PATH:" != *":$_SCRIPT_DIR/env-bin:"* ]; then
   PATH="$_SCRIPT_DIR/env-bin:$PATH"
-fi
-
-_VENV="$_BUILD_DIR/.venv"
-
-if [ ! -d "$_VENV" ]; then
-  if ! command -v virtualenv &> /dev/null; then
-    pip3 install --user virtualenv 1>&2
-  fi
-  mkdir -p "$_BUILD_DIR"
-  virtualenv "$_VENV" 1>&2
-  "$_VENV/bin/pip" install --upgrade pip 1>&2
-  "$_VENV/bin/pip" install --upgrade -r "$_SCRIPT_DIR/requirements.txt" 1>&2
 fi
 
 # Activate the python virtualenv. This adds .venv/bin to PATH and exports PYTHON_VIRTUALENV
