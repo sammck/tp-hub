@@ -18,6 +18,7 @@ _SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 PROJECT_DIR="$(dirname "$_SCRIPT_DIR")"
 _BUILD_DIR="$PROJECT_DIR/build"
 _VENV="$_BUILD_DIR/.venv"
+_ABORT=
 
 # detect if we are being sourced
 (return 0 2>/dev/null) && _SOURCED=1 || _sourced=
@@ -34,50 +35,63 @@ fi
 
 # create virtualenv if it does not exist
 if [ ! -d "$_VENV" ]; then
-  "$_SCRIPT_DIR/create-venv"
+  "$_SCRIPT_DIR/create-venv" || _ABORT=$?
 fi
 
-if [ -z "$_SOURCED" ]; then
-  if [ -z "$1" ]; then
-    # No arguments -- run a child bash shell and source this script into it
-    # This trick allows environment attributes that are not passed to child processes
-    # (ike the prompt string) to work.
-    # Note that when we use --init-file we are replacing ~/.bashrc so we have to source
-    # it as well
-    bash --init-file <(echo ". \"$HOME/.bashrc\"; . \"$_SCRIPT_DIR/hub-env\"") || exit $?
-    exit 0
+if [ -z "$_ABORT" ]; then
+  if [ -z "$_SOURCED" ]; then
+    if [ -z "$1" ]; then
+      # No arguments -- run a child bash shell and source this script into it
+      # This trick allows environment attributes that are not passed to child processes
+      # (like the prompt string) to be initialized in the interactive child shell.
+      # Note that when we use --init-file we are replacing ~/.bashrc so we have to source
+      # it as well.
+      bash --init-file <(echo ". \"$HOME/.bashrc\"; . \"$_SCRIPT_DIR/hub-env\"") || exit $?
+      exit 0
+    fi
+  fi
+
+  export PROJECT_DIR
+
+  # add project bin dir to path
+  if [ ":$PATH:" != *":$_SCRIPT_DIR:"* ]; then
+    PATH="$_SCRIPT_DIR:$PATH"
+  fi
+
+  # add project env-bin dir to path
+  if [ ":$PATH:" != *":$_SCRIPT_DIR/env-bin:"* ]; then
+    PATH="$_SCRIPT_DIR/env-bin:$PATH"
+  fi
+
+  # Activate the python virtualenv. This adds .venv/bin to PATH and exports PYTHON_VIRTUALENV
+  . "$_VENV/bin/activate" || _ABORT=$?
+fi
+
+if [ -z "$_ABORT" ]; then
+  # add python dir to PYTHONPATH
+  if [ -z "$PYTHONPATH" ]; then
+    export PYTHONPATH="$_SCRIPT_DIR/python"
+  else
+    if [ ":$PYTHONPATH:" != *":$_SCRIPT_DIR/python:"* ]; then
+      export PYTHONPATH="$_SCRIPT_DIR/python:$PYTHONPATH"
+    fi
+  fi
+
+if [ -z "$_ABORT" ]; then
+  if [ -z "$_SOURCED" ]; then
+    # We are not being sourced and arguments were provided.  Run them as a command
+    "$@" || exit $?
   fi
 fi
 
-export PROJECT_DIR
-
-# add project bin dir to path
-if [ ":$PATH:" != *":$_SCRIPT_DIR:"* ]; then
-  PATH="$_SCRIPT_DIR:$PATH"
-fi
-
-# add project env-bin dir to path
-if [ ":$PATH:" != *":$_SCRIPT_DIR/env-bin:"* ]; then
-  PATH="$_SCRIPT_DIR/env-bin:$PATH"
-fi
-
-# Activate the python virtualenv. This adds .venv/bin to PATH and exports PYTHON_VIRTUALENV
-. "$_VENV/bin/activate"
-
-# add python dir to PYTHONPATH
-if [ -z "$PYTHONPATH" ]; then
-  export PYTHONPATH="$_SCRIPT_DIR/python"
-else
-  if [ ":$PYTHONPATH:" != *":$_SCRIPT_DIR/python:"* ]; then
-    export PYTHONPATH="$_SCRIPT_DIR/python:$PYTHONPATH"
+if [ -n "$_ABORT" ]; then
+  echo "ERROR: hub-env did not initialize successfully!" >&2
+  if [ -z "$_SOURCED" ]; then
+    exit "$_ABORT"
   fi
 fi
 
-if [ -z "$_SOURCED" ]; then
-  # We are not being sourced and arguments were provided.  Run them as a command
-  "$@" || exit $?
-fi
-
+unset _ABORT
 unset _VENV
 unset _BUILD_DIR
 unset _SOURCED
