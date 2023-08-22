@@ -9,7 +9,7 @@ import ndjson
 from typing import Dict, List
 
 import project_init_tools
-from project_init_tools.internal_types import Jsonable, JsonableDict, JSonableList
+from project_init_tools.internal_types import Jsonable, JsonableDict, JsonableList
 from project_init_tools.installer.docker import install_docker
 from project_init_tools.installer.docker_compose import install_docker_compose
 from project_init_tools.util import (
@@ -21,14 +21,14 @@ def docker_call(args: List[str]) -> None:
     """
     Call docker with the given arguments
     """
-    sudo_check_call_stderr_exception(["docker"] + args, run_with_group="docker")
+    sudo_check_call_stderr_exception(["docker"] + args, use_sudo=False, run_with_group="docker")
 
 def docker_call_output(args: List[str]) -> str:
     """
     Call docker with the given arguments and return the output
     """
     result_bytes: bytes = sudo_check_output_stderr_exception(
-        ["docker"] + args, run_with_group="docker"
+        ["docker"] + args, use_sudo=False, run_with_group="docker"
     )
     return result_bytes.decode("utf-8")
 
@@ -39,7 +39,6 @@ def get_docker_networks() -> Dict[str, JsonableDict]:
     """
     data_json = docker_call_output(
         ["network", "ls", "--format", "json"],
-        run_with_group="docker",
       )
     data: List[JsonableDict] = ndjson.loads(data_json)
     assert isinstance(data, list)
@@ -52,7 +51,6 @@ def get_docker_volumes() -> Dict[str, JsonableDict]:
     """
     data_json = docker_call_output(
         ["volume", "ls", "--format", "json"],
-        run_with_group="docker",
       )
     data: List[JsonableDict] = ndjson.loads(data_json)
     assert isinstance(data, list)
@@ -61,7 +59,7 @@ def get_docker_volumes() -> Dict[str, JsonableDict]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install prerequisites for this project")
-    parser.add_argument("--force". "-f", action="store_true", help="Force clean installation of prerequisites")
+    parser.add_argument("--force", "-f", action="store_true", help="Force clean installation of prerequisites")
 
     args = parser.parse_args()
 
