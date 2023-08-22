@@ -1,0 +1,3 @@
+python-dotenv[cli]==1.0.0
+project-init-tools @ git+https://github.com/sammck/project-init-tools.git@v1.2.0
+bcrypt==4.0.1

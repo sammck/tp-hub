@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# Activates the project environment.
+
+# meant to be sourced (updates environment variables), but can also be run as
+# a standalone script to create the virtualenv if it does not exist.
+# If run as a standalone script and arguments are supplied; runs the
+# arguments as a commandline within the activated environment.
+
+#   - creates a python virtualenv if necessary and activates it.
+#   - adds <project>/bin directory to PATH
+#   - adds <project>/bin/env-bin to PATH
+#   - adds <project>/bin/python to PYTHONPATH
+#   - exports PROJECT_DIR.
+
+# detect if we are being sourced
+(return 0 2>/dev/null) && _SOURCED=1 || _sourced=
+
+if [ -z "$_SOURCED" ]; then
+  set -e
+fi
+
+
+_SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+export PROJECT_DIR="$(dirname "$_SCRIPT_DIR")"
+_BUILD_DIR="$PROJECT_DIR/build"
+
+# add project bin dir to path
+if [ ":$PATH:" != *":$_SCRIPT_DIR:"* ]; then
+  PATH="$_SCRIPT_DIR:$PATH"
+fi
+
+# add project env-bin dir to path
+if [ ":$PATH:" != *":$_SCRIPT_DIR/env-bin:"* ]; then
+  PATH="$_SCRIPT_DIR/env-bin:$PATH"
+fi
+
+_VENV="$_BUILD_DIR/.venv"
+
+if [ ! -d "$_VENV" ]; then
+  if ! command -v virtualenv &> /dev/null; then
+    pip3 install --user virtualenv 1>&2
+  fi
+  mkdir -p "$_BUILD_DIR"
+  virtualenv "$_VENV" 1>&2
+  "$_VENV/bin/pip" install --upgrade pip 1>&2
+  "$_VENV/bin/pip" install --upgrade -r "$_SCRIPT_DIR/requirements.txt" 1>&2
+fi
+
+# Activate the python virtualenv. This adds .venv/bin to PATH and exports PYTHON_VIRTUALENV
+. "$_VENV/bin/activate"
+
+# add python dir to PYTHONPATH
+if [ -z "$PYTHONPATH" ]; then
+  export PYTHONPATH="$_SCRIPT_DIR/python"
+else
+  if [ ":$PYTHONPATH:" != *":$_SCRIPT_DIR/python:"* ]; then
+    export PYTHONPATH="$_SCRIPT_DIR/python:$PYTHONPATH"
+  fi
+fi
+
+# If not being sourced, and arguments are provided, run them as a command
+if [ -z "$_SOURCED" ]; then
+  if [ -n "$1" ]; then
+    "$@" || exit $?
+  fi
+fi
+
+unset _VENV
+unset _BUILD_DIR
+unset _SOURCED
+unset _SCRIPT_DIR
