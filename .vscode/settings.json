@@ -1,0 +1,18 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/build/.venv/bin/python",
+  "python.testing.unittestEnabled": false,
+  "python.autoComplete.extraPaths": [
+    "${workspaceFolder}/bin/python",
+  ],
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/bin/python",
+  ],
+  "[python]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2  
+      },   
+    "files.exclude": {
+      "/trash": true
+    },
+    "terminal.integrated.env.linux": { "PYTHONPATH": "${workspaceFolder}/bin/python" },
+}

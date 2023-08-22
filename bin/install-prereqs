@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import dotenv
 import argparse
@@ -8,54 +9,17 @@ import ndjson
 
 from typing import Dict, List
 
-import project_init_tools
-from project_init_tools.internal_types import Jsonable, JsonableDict, JsonableList
-from project_init_tools.installer.docker import install_docker
-from project_init_tools.installer.docker_compose import install_docker_compose
-from project_init_tools.util import (
-    sudo_check_call_stderr_exception,
-    sudo_check_output_stderr_exception,
-)
-
-def docker_call(args: List[str]) -> None:
-    """
-    Call docker with the given arguments
-    """
-    sudo_check_call_stderr_exception(["docker"] + args, use_sudo=False, run_with_group="docker")
-
-def docker_call_output(args: List[str]) -> str:
-    """
-    Call docker with the given arguments and return the output
-    """
-    result_bytes: bytes = sudo_check_output_stderr_exception(
-        ["docker"] + args, use_sudo=False, run_with_group="docker"
-    )
-    return result_bytes.decode("utf-8")
-
-
-def get_docker_networks() -> Dict[str, JsonableDict]:
-    """
-    Get all docker networks
-    """
-    data_json = docker_call_output(
-        ["network", "ls", "--format", "json"],
-      )
-    data: List[JsonableDict] = ndjson.loads(data_json)
-    assert isinstance(data, list)
-    result: Dict[str, JsonableDict] = { network["Name"]: network for network in data }
-    return result
-
-def get_docker_volumes() -> Dict[str, JsonableDict]:
-    """
-    Get all docker volumes
-    """
-    data_json = docker_call_output(
-        ["volume", "ls", "--format", "json"],
-      )
-    data: List[JsonableDict] = ndjson.loads(data_json)
-    assert isinstance(data, list)
-    result: Dict[str, JsonableDict] = { volume["Name"]: volume for volume in data }
-    return result
+from hub_util import (
+    Jsonable, JsonableDict, JsonableList,
+    install_docker,
+    docker_is_installed,
+    install_docker_compose,
+    docker_compose_is_installed,
+    docker_call,
+    get_docker_networks,
+    get_docker_volumes,
+    should_run_with_group,
+  )
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install prerequisites for this project")
@@ -65,12 +29,14 @@ def main() -> int:
 
     force: bool = args.force
 
+    username = os.environ["USER"]
+
     # Install docker
-    if not project_init_tools.installer.docker.docker_is_installed() or args.force:
+    if not docker_is_installed() or args.force:
         install_docker(force=force)
 
     # Install docker-compose
-    if not project_init_tools.installer.docker_compose.docker_compose_is_installed() or args.force:
+    if not docker_compose_is_installed() or args.force:
         install_docker_compose(force=force)
 
     # Create the "traefik" network if it doesn't exist:
@@ -87,8 +53,13 @@ def main() -> int:
     if "portainer_data" not in docker_volumes:
         docker_call(["volume", "create", "portainer_data"])
 
-    print("Prerequisites installed successfully", file=sys.stderr)
+    if should_run_with_group("docker"):
+        print("\nWARNING: docker and docker-compose require membership in OS group 'docker', which was newly added for", file=sys.stderr)
+        print(f"user \"{username}\", and is not yet effective for the current login session. Please logout", file=sys.stderr)
+        print("and log in again, or in the mean time run docker with:\n", file=sys.stderr)
+        print(f"      sudo -E -u {username} docker [<arg>...]", file=sys.stderr)
 
+    print("\nPrerequisites installed successfully", file=sys.stderr)
 
 
 if __name__ == "__main__":
