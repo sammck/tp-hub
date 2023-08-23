@@ -5,6 +5,7 @@ import sys
 import dotenv
 import argparse
 import json
+import logging
 
 from typing import Dict, List
 
@@ -21,13 +22,20 @@ from hub_util import (
     get_gateway_lan_ip_address,
     get_lan_ip_address,
     get_default_interface,
+    logger,
   )
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install prerequisites for this project")
+
     parser.add_argument("--force", "-f", action="store_true", help="Force clean installation of prerequisites")
+    parser.add_argument( '--loglevel', type=str.lower, default='warning',
+                choices=['debug', 'info', 'warning', 'error', 'critical'],
+                help='Provide logging level. Default="warning"' )
 
     args = parser.parse_args()
+    logging.basicConfig(level=args.loglevel.upper())
+
 
     force: bool = args.force
 

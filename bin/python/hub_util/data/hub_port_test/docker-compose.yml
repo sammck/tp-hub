@@ -1,0 +1,25 @@
+version: "3.3"
+#
+# Copyright (c) 2023 Samuel J. McKelvie
+#
+# MIT License - See LICENSE file accompanying this package.
+#
+#
+# docker-compose.yml configuration for a Stub stack that tests the ports used by the real traeffik stack.
+#
+#   This stack creates a simple whoami HTTP server on 5 ports (7080, 7443, 80, 443, and 8080). It is
+#   used to test the ports used by the real traefik stack, to ensure that they are not already in use,
+#   and that gateway router port forwarding is working correctly.
+#
+#   traefik must not be running when this stack is started, or it will fail to start.
+#
+services:
+  test_whoami_all_ports:
+    image: "traefik/whoami"    # a simple, harmless HTTP server on port 80 that returns info about the HTTP request, such as headers
+    hostname: "port-test${HOSTNAME_SUFFIX}"
+    ports:
+      - "7080:80"
+      - "7443:80"
+      - "80:80"
+      - "443:80"
+      - "8080:80"
