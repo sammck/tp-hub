@@ -15,10 +15,13 @@ from hub_util import (
     docker_is_installed,
     install_docker_compose,
     docker_compose_is_installed,
-    docker_call,
-    get_docker_networks,
-    get_docker_volumes,
+    create_docker_network,
+    create_docker_volume,
     should_run_with_group,
+    get_public_ip_address,
+    get_gateway_lan_ip_address,
+    get_lan_ip_address,
+    get_default_interface,
   )
 
 def main() -> int:
@@ -40,18 +43,25 @@ def main() -> int:
         install_docker_compose(force=force)
 
     # Create the "traefik" network if it doesn't exist:
-    docker_networks = get_docker_networks()
-    if "traefik" not in docker_networks:
-        docker_call(["network", "create", "traefik"])
+    create_docker_network("traefik")
 
     # Create The "traefik_acme" volume if it doesn't exist:
-    docker_volumes = get_docker_volumes()
-    if "traefik_acme" not in docker_volumes:
-        docker_call(["volume", "create", "traefik_acme"])
+    create_docker_volume("traefik_acme")
 
     # Create the "portainer_data" volume if it doesn't exist:
-    if "portainer_data" not in docker_volumes:
-        docker_call(["volume", "create", "portainer_data"])
+    create_docker_volume("portainer_data")
+
+    public_ip_addr = get_public_ip_address()
+    gateway_lan_ip_addr = get_gateway_lan_ip_address()
+    lan_ip_addr = get_lan_ip_address()
+    default_interface = get_default_interface()
+
+    print(file=sys.stderr)
+    print(f"Default interface: {default_interface}", file=sys.stderr)
+    print(f"Gateway LAN IP address: {gateway_lan_ip_addr}", file=sys.stderr)
+    print(f"Public IP address: {public_ip_addr}", file=sys.stderr)
+    print(f"LAN IP address: {lan_ip_addr}", file=sys.stderr)
+
 
     if should_run_with_group("docker"):
         print("\nWARNING: docker and docker-compose require membership in OS group 'docker', which was newly added for", file=sys.stderr)
