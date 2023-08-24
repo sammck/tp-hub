@@ -62,6 +62,9 @@ class DockerComposeStack:
     name: str
     """A friendly name of the stack, for logging purposes"""
 
+    up_stderr_exception: bool
+    """Whether to capture stderr and include in exception when the context is entered."""
+
 
     def __init__(
             self,
@@ -100,9 +103,11 @@ class DockerComposeStack:
             env: Optional[Mapping[str, str]]=None,
             additional_env: Optional[Mapping[str, str]]=None,
             cwd: Optional[str]=None,
+            up_stderr_exception: bool=False,
           ):
         self.down_before_up = down_before_up
         self.auto_down = auto_down
+        self.up_stderr_exception = up_stderr_exception
         if cwd is not None:
             cwd = os.path.abspath(os.path.normpath(cwd))
         self.options = []
@@ -283,11 +288,11 @@ class DockerComposeStack:
             stderr_exception=stderr_exception,
           )
 
-    def up(self) -> None:
+    def up(self, stderr_exception: bool=False) -> None:
         """
         Start the stack
         """
-        self.call(["up"] + self.up_options)
+        self.call(["up"] + self.up_options, stderr_exception=stderr_exception)
         
     def down(self) -> None:
         """
@@ -306,7 +311,7 @@ class DockerComposeStack:
         try:
             if self.down_before_up:
                 self.down()
-            self.up()
+            self.up(stderr_exception=self.up_stderr_exception)
         except BaseException as e:
             logger.debug("Failed to start docker-compose stack; tearing down")
             self.down()

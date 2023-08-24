@@ -17,7 +17,16 @@ from .internal_types import *
 
 from .pkg_logging import logger
 
-from .pkg_data import get_pkg_data_dir
+from .proj_dirs import (
+    get_hub_util_package_dir,
+    get_project_python_dir,
+    get_project_bin_dir,
+    get_project_dir,
+    get_pkg_data_dir,
+    set_project_dir,
+    get_project_bin_data_dir,
+    get_project_build_dir,
+  )
 
 from .util import (
     IpRouteInfo,
@@ -45,8 +54,8 @@ from .util import (
     sudo_check_call_stderr_exception,
     sudo_check_output_stderr_exception,
     download_url_text,
+    resolve_public_dns,
+    raw_resolve_public_dns,
   )
 
 from .docker_compose_stack import DockerComposeStack
-
-from .port_tester import test_whoami_port_connection, test_server_traefik_ports

@@ -309,3 +309,45 @@ def docker_compose_call_output(
         stderr_exception=stderr_exception,
       )
 
+def raw_resolve_public_dns(public_dns: str) -> JsonableDict:
+    """
+    Resolve a public DNS name to an IP address. Bypasses all host files, mDNS, intranet DNS servers etc.
+    """
+    http = urllib3.PoolManager()
+    response = http.request("GET", "https://dns.google/resolve", fields=dict(name=public_dns))
+    if response.status != 200:
+        raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: {response.status} {response.reason}")
+    data: JsonableDict = json.loads(response.data.decode("utf-8"))
+    return data
+
+def resolve_public_dns(public_dns: str, error_on_empty: bool = True) -> List[str]:
+    """
+    Resolve a public DNS name to one or more A record IP addresses. Bypasses all host files, mDNS, intranet DNS servers etc.
+    """
+    data = raw_resolve_public_dns(public_dns)
+    results: List[str] = []
+    if not "Status" in data:
+        raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: No Status in response")
+    if data["Status"] != 3:
+        if data["Status"] != 0:
+            raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Status {data['Status']}")
+        if not "Answer" in data:
+            raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: No Answer in response")
+        answers = data["Answer"]
+        if not isinstance(answers, list):
+            raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer is not a list")
+        for answer in answers:
+            if not isinstance(answer, dict):
+                raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer entry is not a dictionary")
+            if not "type" in answer:
+                raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing type field")
+            if answer["type"] == 1:
+                if not "data" in answer:
+                    raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing data field")
+                result = answer["data"]
+                if not isinstance(result, str):
+                    raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer entry data field is not a string")
+                results.append(result)
+    if len(results) == 0 and error_on_empty:
+        raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: No A records found")
+    return results
