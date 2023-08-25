@@ -26,6 +26,7 @@ from .pkg_logging import logger
 
 from project_init_tools.installer.docker import install_docker, docker_is_installed
 from project_init_tools.installer.docker_compose import install_docker_compose, docker_compose_is_installed
+from project_init_tools.installer.aws_cli import install_aws_cli, aws_cli_is_installed
 from project_init_tools.util import (
     sudo_check_call,
     sudo_check_output,

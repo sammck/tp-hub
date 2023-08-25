@@ -5,36 +5,38 @@ version: "3.3"
 # for debugging connectivity and traefik configuration issues.
 #
 #  Environment Variables:
-#    DNS_DOMAIN          A registered public DNS domain that you control; e.g., "obama-family-home.com"
+#    PARENT_DNS_DOMAIN          A registered public DNS domain that you control; e.g., "obama-family-home.com"
+#    RESOLVER                   "prod" or "staging".  The certificate resolver to use for whoami2.{PARENT_DNS_DOMAIN}
+#                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
 #
 # This stack serves:
-#    http://whoami2.${DNS_DOMAIN}            (public internet or private LAN)
-#    https://whoami2.${DNS_DOMAIN}           (public internet or local LAN)
+#    http://whoami2.${PARENT_DNS_DOMAIN}     (public internet or private LAN)
+#    https://whoami2.${PARENT_DNS_DOMAIN}    (public internet or local LAN)
 #    http://<any-hostname>/whoami2           (private LAN only)
 #
 # Prerequisites:
 #   Prerequisites common to all stacks (only done once when traefik is initially set up):
-#     * A DNS entry with a stable name (e.g., home.${DNS_DOMAIN}) has been configured to resolve to the current public IP address
+#     * A DNS entry with a stable name (e.g., home.${PARENT_DNS_DOMAIN}) has been configured to resolve to the current public IP address
 #       of your network's gateway router. Since typical residential ISPs may change your public IP address periodically, it is
 #       usually necessary to involve Dynamic DNS (DDNS) to make this work. Some gateway routers (e.g., eero) have DDNS support built-in.
 #       Your DDNS provider will provide you with an obscure but unique and stable (as long as you stay with the DDNS provider)
 #       DNS name for your gateway's public IP address; e.g., "g1234567.eero.online". You should then create a CNAME entry for
-#       home.{DNS_DOMAIN} that points at the obscure DDNS name. That makes an easy-to-remember DNS name for your network's public IP
+#       home.{PARENT_DNS_DOMAIN} that points at the obscure DDNS name. That makes an easy-to-remember DNS name for your network's public IP
 #       address, and ensures that if your DDNS obscure name ever changes, you will only have to update this one CNAME record
 #       to be back in business.  
 #     * Your network's gateway router must be configured to forward public ports 80 and 443 to traefik on alternate destination ports
 #       (e.g., 80->7080, 443->7443). Alternate ports are required because ports 80 and 443 are used to serve lan-local (non-internet)
 #       requests and must not be exposed to the internet.
 #     * traefik should be configured with entrypoints as follows:
-#            web            HTTP requests coming in from the public internet through <your-home-public-ip-address>:80
-#            websecure      HTTPS requests coming in from the public internet through <your-home-public-ip-address>:443
+#            web            HTTP requests coming in from the public internet through <your-network-public-ip-address>:80
+#            websecure      HTTPS requests coming in from the public internet through <your-network-public-ip-address>:443
 #            lanweb         HTTP reguests coming in from the intranet through <this-host-lan-ip>:80. Not reachable from internet.
 #            lanwebsecure   HTTPS reguests coming in from the intranet through <this-host-lan-ip>:443. Not reachable from internet.
 #     * traefik should be configured to proxy requests to backend service containers through docker network "traefik"
 #
 #  Special prerequisites for this stack.
-#     * A DNS CNAME entry has been created for whoami2.${DNS_DOMAIN} that resolves to home.${DNS_DOMAIN} (see above)
-#       You must create a DNS entry for whoami2.${DNS_DOMAIN} that resolves to your gateway router's public IP address
+#     * A DNS CNAME entry has been created for whoami2.${PARENT_DNS_DOMAIN} that resolves to home.${PARENT_DNS_DOMAIN} (see above)
+#       You must create a DNS entry for whoami2.${PARENT_DNS_DOMAIN} that resolves to your gateway router's public IP address
 #       *before* starting this stack. If you do not, lets-encrypt will be unable to validate the certificate request,
 #       and will eventually throttle you for a week at a time.
 #
@@ -48,10 +50,16 @@ services:
       - "traefik.enable=true"   # tells traefik that this container should be proxied
 
       # -----------------------------------------
-      # A router for http://whoami2.${DNS_DOMAIN} and https://whoami2.${DNS_DOMAIN}, on either the public internet
+      # A router for https://whoami2.${PARENT_DNS_DOMAIN}, on either the public internet
       # or the local lan entrypoints
-      - "traefik.http.routers.whoami2.entrypoints=web,websecure,lanweb,lanwebsecure"
-      - "traefik.http.routers.whoami2.rule=Host(`whoami2.${DNS_DOMAIN}`)"
+      - "traefik.http.routers.whoami2.entrypoints=websecure,lanwebsecure"
+      - "traefik.http.routers.whoami2.tls.certresolver=resolver-${RESOLVER}"
+      - "traefik.http.routers.whoami2.rule=Host(`whoami2.${PARENT_DNS_DOMAIN}`)"
+      # -----------------------------------------
+      # A router for http://whoami2.${PARENT_DNS_DOMAIN}, on either the public internet
+      # or the local lan entrypoints
+      - "traefik.http.routers.whoami2-http.entrypoints=web,lanweb"
+      - "traefik.http.routers.whoami2-http.rule=Host(`whoami2.${PARENT_DNS_DOMAIN}`)"
       # -----------------------------------------
       # A router for http://<any-hostname>/whoami2, on the local LAN entrypoint only
       - "traefik.http.routers.whoami2-path.entrypoints=lanweb"

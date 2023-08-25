@@ -161,7 +161,7 @@ unique to your hub:
 ```bash
 cd ~/rpi-home-hub
 cat <<EOF >.env
-TRAEFIK_DNS_DOMAIN=<registered-domain-name>
+PARENT_DNS_DOMAIN=<registered-domain-name>
 PORTAINER_AGENT_SECRET=<any-random-secret-string>
 LETSENCRYPT_OWNER_EMAIL=<your-email-address>
 EOF

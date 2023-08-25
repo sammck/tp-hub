@@ -1,4 +1,57 @@
-version: "3"
+version: "3.3"
+
+# docker-compose.yml configuration for a Traefik reverse-proxy with dashboard.
+#
+#  Environment Variables:
+#    PORTAINER_RESOLVER      "prod" or "staging".  The certificate resolver to use for portainer.{PARENT_DNS_DOMAIN}
+#                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
+#    PARENT_DNS_DOMAIN       A registered public DNS domain that you control; e.g., "obama-family-home.com"
+#                                 The dashboard will use a certificate for traefik.${PARENT_DNS_DOMAIN}
+#    PORTAINER_AGENT_SECRET  A secret string that is shared between portainer and portainer_agent.  This is used to
+#                                 authenticate the agent to portainer and vice-versa.
+#
+# Entrypoints:
+#    This stack creates a Traefik reverse-proxy with 5 entrypoints:
+#
+#    Entrypoint      Port   Description
+#    ----------      ----   ---------------------------------
+#    web             7080   Intended to serve public HTTP requests; public port 80 on the network's gateway
+#                             router should be port-forwarded to this port. Also used to serve challenge
+#                             requests from lets-encrypt to verify ownership of domain names.
+#    websecure       7443   Intended to serve public HTTPS requests; public port 443 on the network's gateway
+#                             router should be port-forwarded to this port.
+#    lanweb            80   Serves HTTP requests for LAN-local clients
+#    lanwebsecure     443   Serves HTTPS requests for LAN-local clients. to be used without certificate errors,
+#                             A public DNS name must resolve externally to this network's public IP address,
+#                             but must resolve within the LAN to this host's LAN IP address. This can be done
+#                             by putting the LAN IP address in each client's /etc/hosts, or by hosting
+#                             a LAN-local DNS server that overrides the public entries.
+#    landashboard    8080   Serves the traefik dashboard on LAN-local http://<any-hostname>:8080.  Requires HTTP basic authentication.
+#
+# Externally, this stack serves:
+#    https://portainer.${PARENT_DNS_DOMAIN}          Dashboard (private LAN only). Requires a /hosts entry on each client, or a LAN-local DNS server.
+#    http://portainer.${PARENT_DNS_DOMAIN}           Redirects to https:// (private LAN only)
+#
+# Portainer is only exposed on the LAN, but it requires a hostname that resolves publicly to this network's publid IP address. This
+# is the only way to get a valid lets-encrypt certificate for portainer.${PARENT_DNS_DOMAIN}. So by default, browser clients
+# will get "404 page not found" when they navigate to the portainer URL. There are 2 ways to make it work:
+#
+#  1. Add a /etc/hosts entry on each client that points portainer.${PARENT_DNS_DOMAIN} to this host's LAN IP address.
+#  2. Run a LAN-local DNS server that overrides the public DNS entries for portainer.${PARENT_DNS_DOMAIN} and points them to this host's LAN IP address,
+#     and use a LAN-local DHCP server to configure each client to use the LAN-local DNS server.
+#
+# Prerequisites:
+#   Prerequisites common to all stacks (only done once when traefik is initially set up):
+#     * The traefik docker-compose stack has been installed and runs on this host, and can create certificates
+#       for DNS names that route to this network's public IP address.
+#     * A DNS CNAME entry has been created for portainer.${DNS_DOMAIN} that resolves to this network's public IP address.
+#       You must create a DNS entry for portainer.${DNS_DOMAIN} that resolves to your gateway router's public IP address
+#       *before* starting this stack. If you do not, lets-encrypt will be unable to validate the certificate request,
+#       and will eventually throttle you for a week at a time.
+#     * A persistent docker volume "portainer_data" has been created before launching. This volume will contain all the
+#       persistent state associated with portainer, including its username/password has database and ACL
+#       information.  This volume should never be deleted unless you want to wipe portainer.
+#
 services:
   portainer_agent:
     # A portainer agent that provides access to docker on the local host.
@@ -21,8 +74,8 @@ services:
     volumes:
       - portainer_data:/data                              # Persistent data for the agent
       - /var/run/docker.sock:/var/run/docker.sock         # Allows the agent to control docker on the local host
-      - /var/lib/docker/volumes:/var/lib/docker/volumes   # Allows portainer UI browsing of and upload to docker volumes
-      - /:/host                                           # Allows portainer UI browsing of entire host filesystem
+      - /var/lib/docker/volumes:/var/lib/docker/volumes   # Allows portainer UI browsing of docker volumes (and upload/download)
+      - /:/host                                           # Allows portainer UI browsing of entire host filesystem (and upload/download)
     networks:
       - portainer_agent     # allows portainer to see the agent. Nothing else needs access
     restart: always
@@ -34,9 +87,7 @@ services:
       LOG_LEVEL: DEBUG
       AGENT_SECRET: ${PORTAINER_AGENT_SECRET}    # allows portainer to authenticate to the agent
     ports:
-      # - 9000:9000  # HTTP UI.  Not secure. should only be exposed behind reverse-proxy. No need to expose to host.
       - 8000:8000    # SSH tunnel entrypoint; used by edge portainer agents to connect to portainer server
-      # - 9443:9443  # HTTPS UI. No need to expose to host since traefik exposes 9000 via lanwebsecure.
     volumes:
       - portainer_data:/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -44,17 +95,21 @@ services:
       - traefik           # allows traefik to forward requests to portainer
       - portainer_agent   # allows portainer to connect to the local portainer agent on port 9001
     labels:
-      # expose Portainer web UI (port 9000 in the container) behind the traefik reverse-proxy (LAN only) at https://portainer.${TRAEFIK_DNS_DOMAIN}.
-      # The client will need to add a /etc/hosts entry to point portainer.${TRAEFIK_DNS_DOMAIN} at this host's LAN IP.
+      # expose Portainer web UI (port 9000 in the container) behind the traefik reverse-proxy (LAN only) at https://portainer.${PARENT_DNS_DOMAIN}.
+      # The client will need to add a /etc/hosts entry to point portainer.${PARENT_DNS_DOMAIN} at this host's LAN IP.
       - "traefik.enable=true"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"     # Port 9000 is reverse-proxied
+
+      # A router for https://portainer.${PARENT_DNS_DOMAIN}
+      - "traefik.http.routers.portainer.entrypoints=lanwebsecure"
+      - "traefik.http.routers.portainer.tls.certresolver=resolver-${PORTAINER_RESOLVER}"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.${PARENT_DNS_DOMAIN}`)"
+
+      # A router for http://portainer.${PARENT_DNS_DOMAIN} that redirects to https
       - "traefik.http.routers.portainer-http.entrypoints=lanweb"
-      - "traefik.http.routers.portainer-http.rule=Host(`portainer.${TRAEFIK_DNS_DOMAIN}`)"
-      # Following 2 lines force a redirect from http to https on this service
+      - "traefik.http.routers.portainer-http.rule=Host(`portainer.${PARENT_DNS_DOMAIN}`)"
       - "traefik.http.routers.portainer-http.middlewares=portainer-https"
       - "traefik.http.middlewares.portainer-https.redirectscheme.scheme=https"
-      - "traefik.http.routers.portainer.entrypoints=lanwebsecure"
-      - "traefik.http.routers.portainer.rule=Host(`portainer.${TRAEFIK_DNS_DOMAIN}`)"
     restart: always
 
 volumes:

@@ -50,6 +50,8 @@ from .util import (
     docker_compose_is_installed,
     install_docker_compose,
     docker_compose_is_installed,
+    install_aws_cli,
+    aws_cli_is_installed,
     should_run_with_group,
     sudo_check_call_stderr_exception,
     sudo_check_output_stderr_exception,

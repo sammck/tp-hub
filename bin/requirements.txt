@@ -2,3 +2,4 @@ python-dotenv[cli]==1.0.0
 project-init-tools @ git+https://github.com/sammck/project-init-tools.git@v1.2.0
 bcrypt==4.0.1
 typing_extensions==4.7.1
+boto3-stubs[essential,route53]==1.28.34

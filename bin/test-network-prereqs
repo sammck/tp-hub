@@ -196,9 +196,9 @@ class App:
         username = os.environ["USER"]
 
         print(f"Testing network prerequisites for this project", file=sys.stderr)
-        traefik_dns_domain = os.environ.get("TRAEFIK_DNS_DOMAIN")
+        traefik_dns_domain = os.environ.get("PARENT_DNS_DOMAIN")
         if traefik_dns_domain is None:
-            raise HubUtilError("You must create .env in the project root and set TRAEFIK_DNS_DOMAIN before runningthis test")
+            raise HubUtilError("You must create .env in the project root and set PARENT_DNS_DOMAIN before runningthis test")
         print(f"Traefik DNS domain: {traefik_dns_domain}", file=sys.stderr)
 
         self.test_public_dns_name(f"traefik.{traefik_dns_domain}")
