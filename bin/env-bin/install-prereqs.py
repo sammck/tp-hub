@@ -9,7 +9,7 @@ import logging
 
 from typing import Dict, List
 
-from hub_util import (
+from rpi_hub import (
     Jsonable, JsonableDict, JsonableList,
     install_docker,
     docker_is_installed,

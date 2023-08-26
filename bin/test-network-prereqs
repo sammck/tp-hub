@@ -58,7 +58,7 @@ class App:
                 result["http-version"] = m.group("http_version")
             else:
                 if ":" not in line:
-                    raise HubUtilError(f"Invalid whoami response line (no colon): {line!r}")
+                    raise HubError(f"Invalid whoami response line (no colon): {line!r}")
                 key, value = line.split(":", 1)
                 key = key.strip()
                 value = value.strip()
@@ -102,17 +102,17 @@ class App:
             pool_manager.clear()
         http_path = headers.get("http-path")
         if http_path is None:
-            raise HubUtilError(f"whoami server did not return an HTTP path")
+            raise HubError(f"whoami server did not return an HTTP path")
         if stripped_path_prefix is not None:
             http_path = stripped_path_prefix + http_path
         expected_http_path = f"/{random_path}"
         if http_path != expected_http_path:
-            raise HubUtilError(f"whoami server returned nonmatching HTTP path (correct is {expected_http_path!r}): {http_path!r}")
+            raise HubError(f"whoami server returned nonmatching HTTP path (correct is {expected_http_path!r}): {http_path!r}")
         hostname = headers.get("Hostname")
         if hostname is None:
-            raise HubUtilError(f"test_whoami_port_connection: whoami server did not return a hostname")
+            raise HubError(f"test_whoami_port_connection: whoami server did not return a hostname")
         if expected_hostname is not None and hostname != expected_hostname:
-            raise HubUtilError(f"whoami server returned nonmatching hostname (correct is {expected_hostname!r}): {hostname!r}")
+            raise HubError(f"whoami server returned nonmatching hostname (correct is {expected_hostname!r}): {hostname!r}")
         logger.debug(f"test_whoami_port_connection: whoami server at {remote_host}: {remote_port} responded correctly")
 
     def test_server_traefik_ports(self):
@@ -149,7 +149,7 @@ class App:
                         self.test_whoami_port_connection(lan_ip_address, port, expected_hostname=expected_hostname)
                         print(f"Test for hub LAN port {lan_ip_address}:{port} passed!", file=sys.stderr)
                     except Exception as e:
-                        raise HubUtilError(f"Test for hub LAN port {lan_ip_address}:{port} failed") from e
+                        raise HubError(f"Test for hub LAN port {lan_ip_address}:{port} failed") from e
                 for port in [ 80, 443 ]:
                     try:
                         self.test_whoami_port_connection(public_ip_address, port, expected_hostname=expected_hostname)
@@ -158,7 +158,7 @@ class App:
                         raise(f"Test for Gateway public port {public_ip_address}:{port} forwarding to {lan_ip_address}:{port+7000} failed") from e
         except Exception as e:
             if not stack_created:
-                raise HubUtilError(f"Unable to launch port test stack. Check to ensure Traefik is not running") from e
+                raise HubError(f"Unable to launch port test stack. Check to ensure Traefik is not running") from e
             raise
         logger.debug("All port tests passed!")
 
@@ -168,9 +168,9 @@ class App:
         public_ip_address = get_public_ip_address()
         resolved_ip_addresses = resolve_public_dns(hostname)
         if not public_ip_address in resolved_ip_addresses:
-            raise HubUtilError(f"Public DNS name {hostname} resolves to {resolved_ip_addresses}, not {public_ip_address}")
+            raise HubError(f"Public DNS name {hostname} resolves to {resolved_ip_addresses}, not {public_ip_address}")
         if len(resolved_ip_addresses) > 1:
-            raise HubUtilError(f"Public DNS name {hostname} resolves to multiple IP addresses: {resolved_ip_addresses}, not just {public_ip_address}")
+            raise HubError(f"Public DNS name {hostname} resolves to multiple IP addresses: {resolved_ip_addresses}, not just {public_ip_address}")
         print(f"Public DNS name {hostname} resolves correctly to public IP address {public_ip_address}", file=sys.stderr)
         
     def main(self) -> int:
@@ -198,7 +198,7 @@ class App:
         print(f"Testing network prerequisites for this project", file=sys.stderr)
         traefik_dns_domain = os.environ.get("PARENT_DNS_DOMAIN")
         if traefik_dns_domain is None:
-            raise HubUtilError("You must create .env in the project root and set PARENT_DNS_DOMAIN before runningthis test")
+            raise HubError("You must create .env in the project root and set PARENT_DNS_DOMAIN before runningthis test")
         print(f"Traefik DNS domain: {traefik_dns_domain}", file=sys.stderr)
 
         self.test_public_dns_name(f"traefik.{traefik_dns_domain}")

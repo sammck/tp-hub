@@ -129,11 +129,11 @@ def get_hosted_zone_info(
     for zone in get_all_hosted_zones(aws, starting_name=zone_dns_name):
         if zone['Name'] == zone_dns_name and zone['Config']['PrivateZone'] == (not public):
             if matched is not None:
-                raise HubUtilError(f"Multiple hosted zones found for {zone_dns_name} in current AWS account")
+                raise HubError(f"Multiple hosted zones found for {zone_dns_name} in current AWS account")
             matched = zone
 
     if matched is None:
-        raise HubUtilError(f"Hosted zone {zone_dns_name} not found in current AWS account")
+        raise HubError(f"Hosted zone {zone_dns_name} not found in current AWS account")
     
     return matched
 
@@ -211,7 +211,7 @@ def get_resource_record_sets(
             record_full_name += "."
         record_short_name, record_parent_name = record_full_name.split(".", 1)
         if record_parent_name != full_hosted_zone_name:
-            raise HubUtilError(f"record_name {record_name} is not a simple subdomain of hosted zone {hosted_zone_name}")
+            raise HubError(f"record_name {record_name} is not a simple subdomain of hosted zone {hosted_zone_name}")
     result: List[ResourceRecordSetTypeDef] = []
     for record_set in get_all_resource_record_sets(aws, zone_id, start_record_name=record_full_name):
         if record_set['Name'] != record_full_name:
@@ -259,13 +259,13 @@ def delete_route53_dns_name(
     full_dns_name = f"{dns_name}."
 
     if '..' in dns_name:
-        raise HubUtilError(f"dns_name {dns_name} must not contain '..'")
+        raise HubError(f"dns_name {dns_name} must not contain '..'")
     
     if dns_name.startswith("."):
-        raise HubUtilError(f"dns_name {dns_name} must not start with '.'")
+        raise HubError(f"dns_name {dns_name} must not start with '.'")
     
     if len(dns_name.split('.')) < 3:
-        raise HubUtilError(f"dns_name {dns_name} must be a subdomain of a registered hosted zone")
+        raise HubError(f"dns_name {dns_name} must be a subdomain of a registered hosted zone")
 
     dns_subdomain, dns_zone_name = dns_name.split('.', 1)
 
@@ -278,7 +278,7 @@ def delete_route53_dns_name(
             logger.debug(f"DNS name {dns_name} does not exist in hosted zone {dns_zone_name}; ignoring delete request")
             return
         else:
-            raise HubUtilError(f"DNS name {dns_name} does not exist in hosted zone {dns_zone_name}--cannot delete")
+            raise HubError(f"DNS name {dns_name} does not exist in hosted zone {dns_zone_name}--cannot delete")
     
     response = route53.change_resource_record_sets(
         HostedZoneId=hosted_zone_id,
@@ -347,7 +347,7 @@ def create_route53_dns_name(
     route53 = aws.route53
 
     if target == "" or target == ".":
-        raise HubUtilError("target must not be empty")
+        raise HubError("target must not be empty")
 
     if verify_public_ip is None:
         verify_public_ip = public_ip is not None
@@ -361,13 +361,13 @@ def create_route53_dns_name(
     full_dns_name = f"{dns_name}."
 
     if '..' in dns_name:
-        raise HubUtilError(f"dns_name {dns_name} must not contain '..'")
+        raise HubError(f"dns_name {dns_name} must not contain '..'")
     
     if dns_name.startswith("."):
-        raise HubUtilError(f"dns_name {dns_name} must not start with '.'")
+        raise HubError(f"dns_name {dns_name} must not start with '.'")
     
     if len(dns_name.split('.')) < 3:
-        raise HubUtilError(f"dns_name {dns_name} must be a subdomain of a registered hosted zone")
+        raise HubError(f"dns_name {dns_name} must be a subdomain of a registered hosted zone")
 
     dns_subdomain, dns_zone_name = dns_name.split('.', 1)
 
@@ -384,21 +384,21 @@ def create_route53_dns_name(
             target = f"{target}."
 
         if '..' in target:
-            raise HubUtilError(f"target {target} must not contain '..'")
+            raise HubError(f"target {target} must not contain '..'")
         
         if target.startswith("."):
-            raise HubUtilError(f"target {target} must not start with '.'")
+            raise HubError(f"target {target} must not start with '.'")
         
         resolved_ips = resolve_public_dns(target)
 
 
     if verify_public_ip:
         if len(resolved_ips) == 0:
-            raise HubUtilError(f"Target name {target} could not be resolved to an IP addresses")
+            raise HubError(f"Target name {target} could not be resolved to an IP addresses")
         if public_ip not in resolved_ips:
-            raise HubUtilError(f"Target name {target} resolves to {resolved_ips}, but required public IP address is {public_ip}")
+            raise HubError(f"Target name {target} resolves to {resolved_ips}, but required public IP address is {public_ip}")
         if len(resolved_ips) > 1:
-            raise HubUtilError(f"Target name {target} resolves to {resolved_ips}, which includes {public_ip}, but multiple IP addresses are not supported")
+            raise HubError(f"Target name {target} resolves to {resolved_ips}, which includes {public_ip}, but multiple IP addresses are not supported")
 
     new_resource_record: ResourceRecordTypeDef = dict(
         Value=target,
@@ -417,11 +417,11 @@ def create_route53_dns_name(
     record_sets = get_resource_record_sets(aws, hosted_zone_id, dns_name)
 
     if len(record_sets) > 1:
-        raise HubUtilError(f"Multiple resource record sets found for {dns_name} in hosted zone {dns_zone_name}: {record_sets}")
+        raise HubError(f"Multiple resource record sets found for {dns_name} in hosted zone {dns_zone_name}: {record_sets}")
     elif len(record_sets) > 0:
         record_set = record_sets[0]
         if not allow_exists:
-            raise HubUtilError(f"Record set for DNS name {dns_name} already exists in zone ID {hosted_zone_id}: {record_set}")
+            raise HubError(f"Record set for DNS name {dns_name} already exists in zone ID {hosted_zone_id}: {record_set}")
         if resource_record_sets_are_equal(record_set, new_resource_record_set):
             logger.debug(f"DNS name {dns_name} already exists and matches target {target}")
             return
@@ -429,7 +429,7 @@ def create_route53_dns_name(
             if allow_overwrite:
                 logger.info(f"DNS name {dns_name} already exists and does not match target {target}; overwriting: {record_set}")
             else:
-                raise HubUtilError(f"DNS name {dns_name} already exists, but does not match target {target}: {record_set}")
+                raise HubError(f"DNS name {dns_name} already exists, but does not match target {target}: {record_set}")
             
     logger.debug(f"Creating/updating DNS name {dns_name} with target {target} in hosted zone {dns_zone_name}")
     response = route53.change_resource_record_sets(

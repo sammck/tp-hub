@@ -170,12 +170,12 @@ class DockerComposeStack:
                         has_value_arg = option_name in ["-f", "-p"]
                         if has_value_arg:
                             if i_opt_ch < len(option) - 2:
-                                raise HubUtilError(f"Option {option_name} must be last in a group of options")
+                                raise HubError(f"Option {option_name} must be last in a group of options")
                             break
                         option_pairs.append((option_name, ""))
                 if has_value_arg:
                     if i >= len(self.options):
-                        raise HubUtilError(f"Missing option value after {option_name}")
+                        raise HubError(f"Missing option value after {option_name}")
                     option_value = self.options[i]
                     i += 1
                     option_pairs.append((option_name, option_value))

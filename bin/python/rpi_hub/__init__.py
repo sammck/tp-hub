@@ -5,17 +5,14 @@ Package hub_util
 
 Handy Python utilities for this project
 """
-import os
-import sys
-import dotenv
-import json
-import re
-import functools
-from functools import cache
+
+from .version import __version__
 
 from .internal_types import *
 
 from .pkg_logging import logger
+
+from .hub_config import HubConfig
 
 from .proj_dirs import (
     get_hub_util_package_dir,

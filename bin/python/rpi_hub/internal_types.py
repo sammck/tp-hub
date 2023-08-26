@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import (
     Dict, List, Optional, Union, Any, TypeVar, Tuple,
     Callable, Iterable, Iterator, Generator, cast, TYPE_CHECKING,
-    Mapping, ParamSpec, Concatenate,
+    Mapping, ParamSpec, Concatenate, Sequence,
   )
 
 from types import TracebackType
@@ -21,7 +21,7 @@ from typing_extensions import Self
 
 from project_init_tools.internal_types import Jsonable, JsonableDict, JsonableList
 
-class HubUtilError(Exception):
+class HubError(Exception):
     """
     Base class for exceptions in this module
     """

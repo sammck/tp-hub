@@ -1,0 +1,146 @@
+version: 1.2
+
+# Contains default configuration for the project
+#
+# Users should not modify this file. Instead, they should create a
+# config.yml file in the same directory as this file and override
+# the values they wish to change.
+
+hub:
+  # The registered public DNS domain under which subdomains are created
+  # as needed for added web services. You must be able to create DNS
+  # record sets in this domain. If hosted on AWS Route53, tools are
+  # provided to automate this. Also becomes the default value for
+  # Traefik and Portainer PARENT_DNS_DOMAIN stack variable.
+  # REQUIRED.
+  # parent_dns_domain: mydnsname.com
+
+  # The registered public DNS domain under which the "traefik."
+  # and "portainer." subdomains are created to access the Traefik
+  # and Portainer web interfaces. You must be able to create DNS
+  # record sets in this domain. If hosted on AWS Route53, tools are
+  # provided to automate this. By default, the value of
+  # parent_dns_domain is used.
+  # admin_parent_dns_domain: mydnsname.com
+
+  # The default email address to use for Let's Encrypt registration  to produce
+  # SSL certificates. If not provided, and this project is a git clone of the
+  # rpi-hub project, the value from git config user.email is used. Otherwise, REQUIRED.
+  # letsencrypt_owner_email: brad@mydnsname.com
+
+  # The email address to use for Let's Encrypt registration in the "prod"
+  # name resolver, which produces genuine valid certificates. If not provided,
+  # the value from letsencrypt_owner_email is used.
+  # letsencrypt_owner_email_prod: brad@mydnsname.com
+
+  # The email address to use for Let's Encrypt registration in the "staging"
+  # name resolver, which produces untrusted certificates for testing purposes.
+  # Using the staging resolver avoids hitting rate limits on the prod resolver.
+  # If not provided, the value from letsencrypt_owner_email is used.
+  # letsencrypt_owner_email_prod: brad@mydnsname.com
+
+  # The default name of the Traefik certificate resolver to use for HTTPS/TLS
+  # routes. Generally, this should be "prod" for production use (real certs),
+  # and "staging" for testing purposes (untrusted certs).
+  # If not provided, "staging" is used.
+  # default_cert_resolver: staging
+
+  # The default name of the Traefik certificate resolver to use for HTTPS/TLS
+  # routes for the Traefik dashboard and Portainer web interface. By default,
+  # "prod" is used.
+  # admin_cert_resolver: prod
+
+  # The name of the Traefik certificate resolver to use for the Traefik dashboard.
+  # By default, the value of admin_cert_resolver is used.
+  # traefik_dashboard_cert_resolver: prod
+
+  # The name of the Traefik certificate resolver to use for the Portainer web interface.
+  # By default, the value of admin_cert_resolver is used.
+  # portainer_cert_resolver: prod
+
+  # A random string used to secure communication between Portainer and the Portainer
+  # agent. Typically 32 hex digits.
+  # REQUIRED (generated and installed in user config by provisioning tools).
+  # portainer_agent_secret: 0123456789abcdef0123456789abcdef
+
+  # The admin username and bcrypt-hashed password to use for HTTP Basic authhentication on
+  # the Traefik dashboard. The value of this string is of the form "username:hashed_password",
+  # and can be generated using the `htpasswd -nB admin` or tools included in this project.
+  # This value is sensitive, and should not be stored in a git repository. Also, a hard-to-guess
+  # password should be used to defend against a dictionary attack if the hash is ever compromised.
+  # Note that this value may contain dollar-signs, so when it is passed to docker-compose
+  # via an environment variable, all dollar-signs must be doubled to escape them (they
+  # are not doubled here).
+  # REQUIRED (generated and installed in user config by provisioning tools).
+  # traefik_dashboard_htpasswd: 'admin:$2y$05$LCmVF2WJY/Ue0avRDcsDmelPqzXQcMIXoRxHF3bR62HuIP.fqqqZm'
+
+  # A permanent DNS name (e.g., ddns.mydnsname.com) that has been configured to always
+  # resolve to the current public IP address of your network's gateway router. Since typical
+  # residential ISPs may change your public IP address periodically, it is usually necessary to
+  # involve Dynamic DNS (DDNS) to make this work. Some gateway routers (e.g., eero) have DDNS
+  # support built-in. Otherwise, you can run a DDNS client agent on any host inside your network,
+  # and use a DDNS provider such as noip.com.
+  # Your DDNS provider will provide you with an obscure but unique and stable (as long as you stay
+  # with the DDNS provider) DNS name for your gateway's public IP address; e.g.,
+  # "g1234567.eero.online". You should then create a permanent CNAME entry (e.g., ddns.mydnsname.com)
+  # that points at the obscure DDNS name. That additional level of indirection makes an
+  # easy-to-remember DNS name for your network's public IP address, and ensures that if your
+  # provided obscure name ever changes, you will only have to update this one CNAME record to
+  # be back in business.
+  # All DNS names created by this project will be CNAME records that point to this DNS name.
+  # As a convenience, if this value is a sinple subdomain name with no dots, it will be
+  # automatically prepended to the value of admin_parent_dns_domain to form the full DNS name.
+  # The default value is "ddns".
+  # stable_public_dns_name: ddns
+
+  # The subdomain under admin_parent_dns_domain to use for the Traefik dashboard. The default value is "traefik".
+  # traefik_dashboard_subdomain: traefik
+
+  # The subdomain under admin_parent_dns_domain to use for the Portainer web interface. The default value is "portainer".
+  # portainer_subdomain: portainer
+
+  # A subdomain under parent_dns_domain to use for general-purpose path-routed web services created by Portainer.
+  # this allows multiple simple services to share a single provisioned DNS name and certificate
+  # if they can be routed with a traefik Path or PathPrefix rule. The default value is "rpi-hub".
+  # default_app_subdomain: hub
+
+  # The default name of the Traefik certificate resolver to use for HTTPS/TLS
+  # routes using the default app subdomain. Generally, this should be "prod"
+  #   once the default app subdomain route has been validated.
+  # and "staging" for testing purposes (untrusted certs).
+  # If not provided, the value of default_cert_resolver is used.
+  # app_subdomain_cert_resolver: prod
+
+  base_stack_env:
+    # Environment variables that will be passed to all docker-compose stacks, including
+    # the Traefik and Portainer stacks, and stacks created by Portainer. Note that
+    # properties defined here will be installed directly into Portainer's runtime
+    # environment, and thus will be available for expansion in all docker-compose
+    # stacks started by Portainer.
+    {}
+
+  traefik_stack_env:
+    # Environment variables that will be passed to the Traefik docker-compose stack.
+    # Inherits from base_stack_env.
+    {}
+  
+  portainer_stack_env:
+    # Environment variables that will be passed to the Portainer docker-compose stack.
+    # inherits from base_stack_env.
+    {}
+
+  base_app_stack_env:
+    # Environment variables that should be passed to all app stacks, including
+    # stacks created by Portainer. Note that properties defined here will be
+    # installed directly into Portainer's runtime environment, and thus will
+    # be available for expansion in all docker-compose stacks started by Portainer.
+    # Inherits from base_stack_env.
+    {}
+
+  portainer_runtime_env:
+    # Environment variables that will be installed into Portainer's actual runtime
+    # environment, and thus will be available for expansion in all docker-compose stacks
+    # started by Portainer.
+    # Inherits from base_app_stack_env.
+    {}
+  

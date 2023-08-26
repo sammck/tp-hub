@@ -4,4 +4,4 @@
 /trash/
 *.pyc
 __pycache__/
-
+/config.yml

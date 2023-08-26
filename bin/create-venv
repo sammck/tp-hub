@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Creates the project python virtualenv.
+# Creates the project python virtualenv and installs required python packages.
 # -f option forces rebuild
 
 set -e

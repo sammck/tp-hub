@@ -44,10 +44,10 @@ def get_public_ip_address() -> str:
     try:
         result = download_url_text("https://api.ipify.org/").strip()
         if result == "":
-            raise HubUtilError("https://api.ipify.org returned an empty string")
+            raise HubError("https://api.ipify.org returned an empty string")
         return result
     except Exception as e:
-        raise HubUtilError("Failed to get public IP address") from e
+        raise HubError("Failed to get public IP address") from e
 
 class IpRouteInfo():
     remote_ip_addr: str
@@ -82,7 +82,7 @@ class IpRouteInfo():
         ).decode("utf-8").split('\n')[0].rstrip()
         match = self._ip_route_re.match(response)
         if match is None:
-            raise HubUtilError(f"Failed to parse output of 'ip -o route get {remote_ip_addr}: '{response}'")
+            raise HubError(f"Failed to parse output of 'ip -o route get {remote_ip_addr}: '{response}'")
         self.gateway_lan_addr = match.group("gateway_lan_addr")
         self.network_interface = match.group("network_interface")
         self.local_lan_addr = match.group("local_lan_addr")
@@ -150,12 +150,12 @@ def ndjson_to_dict(text:str, key_name: str="Name") -> Dict[str, JsonableDict]:
     result: Dict[str, JsonableDict] = {}
     for item in data:
         if not isinstance(item, dict):
-            raise HubUtilError("ndjson Object is not a dictionary")
+            raise HubError("ndjson Object is not a dictionary")
         key = item.get(key_name)
         if key is None:
-            raise HubUtilError(f"ndjson Object is missing key {key_name}")
+            raise HubError(f"ndjson Object is missing key {key_name}")
         if not isinstance(key, str):
-            raise HubUtilError(f"ndjson Object key {key_name} is not a string")
+            raise HubError(f"ndjson Object key {key_name} is not a string")
         result[key] = item
     return result
 
@@ -317,7 +317,7 @@ def raw_resolve_public_dns(public_dns: str) -> JsonableDict:
     http = urllib3.PoolManager()
     response = http.request("GET", "https://dns.google/resolve", fields=dict(name=public_dns))
     if response.status != 200:
-        raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: {response.status} {response.reason}")
+        raise HubError(f"Failed to resolve public DNS name {public_dns}: {response.status} {response.reason}")
     data: JsonableDict = json.loads(response.data.decode("utf-8"))
     return data
 
@@ -328,27 +328,27 @@ def resolve_public_dns(public_dns: str, error_on_empty: bool = True) -> List[str
     data = raw_resolve_public_dns(public_dns)
     results: List[str] = []
     if not "Status" in data:
-        raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: No Status in response")
+        raise HubError(f"Failed to resolve public DNS name {public_dns}: No Status in response")
     if data["Status"] != 3:
         if data["Status"] != 0:
-            raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Status {data['Status']}")
+            raise HubError(f"Failed to resolve public DNS name {public_dns}: Status {data['Status']}")
         if not "Answer" in data:
-            raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: No Answer in response")
+            raise HubError(f"Failed to resolve public DNS name {public_dns}: No Answer in response")
         answers = data["Answer"]
         if not isinstance(answers, list):
-            raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer is not a list")
+            raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer is not a list")
         for answer in answers:
             if not isinstance(answer, dict):
-                raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer entry is not a dictionary")
+                raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry is not a dictionary")
             if not "type" in answer:
-                raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing type field")
+                raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing type field")
             if answer["type"] == 1:
                 if not "data" in answer:
-                    raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing data field")
+                    raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing data field")
                 result = answer["data"]
                 if not isinstance(result, str):
-                    raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: Answer entry data field is not a string")
+                    raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry data field is not a string")
                 results.append(result)
     if len(results) == 0 and error_on_empty:
-        raise HubUtilError(f"Failed to resolve public DNS name {public_dns}: No A records found")
+        raise HubError(f"Failed to resolve public DNS name {public_dns}: No A records found")
     return results
