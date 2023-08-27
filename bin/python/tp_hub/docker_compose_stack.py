@@ -5,8 +5,6 @@
 #
 
 """
-Package hub_util
-
 Handy Python utilities for this project
 """
 
@@ -180,8 +178,8 @@ class DockerComposeStack:
                     i += 1
                     option_pairs.append((option_name, option_value))
         logger.debug(f"DockerComposeStack: option_pairs: {option_pairs}")
-        project_directory: Optional[str] = None
-        project_name: Optional[str] = None
+        project_directory = None
+        project_name = None
         docker_compose_files: List[str] = []
         for option_name, option_value in option_pairs:
             if option_name in ("-f", "--file"):

@@ -12,9 +12,9 @@ import logging
 import time
 from secrets import token_bytes
 
-from hub_util.internal_types import *
+from tp_hub.internal_types import *
 
-from hub_util import (
+from tp_hub import (
     install_docker,
     docker_is_installed,
     install_docker_compose,

@@ -6,7 +6,7 @@ version: "3.3"
 #
 #  Environment Variables:
 #    PARENT_DNS_DOMAIN          A registered public DNS domain that you control; e.g., "obama-family-home.com"
-#    RESOLVER                   "prod" or "staging".  The certificate resolver to use for whoami2.{PARENT_DNS_DOMAIN}
+#    CERT_RESOLVER              "prod" or "staging".  The certificate resolver to use for whoami2.{PARENT_DNS_DOMAIN}
 #                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
 #
 # This stack serves:
@@ -53,7 +53,7 @@ services:
       # A router for https://whoami2.${PARENT_DNS_DOMAIN}, on either the public internet
       # or the local lan entrypoints
       - "traefik.http.routers.whoami2.entrypoints=websecure,lanwebsecure"
-      - "traefik.http.routers.whoami2.tls.certresolver=resolver-${RESOLVER}"
+      - "traefik.http.routers.whoami2.tls.certresolver=${CERT_RESOLVER}"
       - "traefik.http.routers.whoami2.rule=Host(`whoami2.${PARENT_DNS_DOMAIN}`)"
       # -----------------------------------------
       # A router for http://whoami2.${PARENT_DNS_DOMAIN}, on either the public internet

@@ -3,10 +3,10 @@ version: "3.3"
 # docker-compose.yml configuration for a Traefik reverse-proxy with dashboard.
 #
 #  Environment Variables:
-#    DEFAULT_RESOLVER         "prod" or "staging".  The default certificate resolver to use for
+#    DEFAULT_CERT_RESOLVER   "prod" or "staging".  The default certificate resolver to use for
 #                                 https services that do not specify a resolver.
 #                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
-#    TRAEFIK_RESOLVER         "prod" or "staging".  The certificate resolver to use for traefik.{PARENT_DNS_DOMAIN}
+#    TRAEFIK_CERT_RESOLVER   "prod" or "staging".  The certificate resolver to use for traefik.{PARENT_DNS_DOMAIN}
 #                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
 #    PARENT_DNS_DOMAIN       A registered public DNS domain that you control; e.g., "obama-family-home.com"
 #                                 The dashboard will use a certificate for traefik.${PARENT_DNS_DOMAIN}
@@ -103,38 +103,38 @@ services:
 
       - "--entrypoints.web.address=:7080"                                      # Public http:// entrypoint (from gateway router port 80 forwarding)
       - "--entrypoints.websecure.address=:7443"                                # Public https:// entrypoint ( from gateway router port 443 forwarding)
-      - "--entrypoints.websecure.http.tls.certResolver=resolver-${DEFAULT_RESOLVER}"
+      - "--entrypoints.websecure.http.tls.certResolver=${DEFAULT_CERT_RESOLVER}"
                                                                                # port 443 on LAN and public internet use lets-encrypt ACME tls resolver
       - "--entrypoints.lanweb.address=:80"                                     # Private LAN-only http:// entrypoint. Exposed to LAN.
       - "--entrypoints.lanwebsecure.address=:443"                              # Private https:// entrypoint. Exposed to LAN.
-      - "--entrypoints.lanwebsecure.http.tls.certResolver=resolver-${DEFAULT_RESOLVER}"
+      - "--entrypoints.lanwebsecure.http.tls.certResolver=${DEFAULT_CERT_RESOLVER}"
                                                                                # Private LAN-only http://<any-host>:8080 entrypoint; used for LAN-local dashboard
       - "--entrypoints.landashboard.address=:8080"                             # Private LAN-only http://<host>:8080 entrypoint. Exposed to LAN.
 
       # "prod" certificate resolver uses real lets-encrypt certificates
-      - "--certificatesresolvers.resolver-prod.acme.storage=/acme/acme_prod.json"
+      - "--certificatesresolvers.prod.acme.storage=/acme/acme_prod.json"
                                                                                # ACME state must be preserved so we put it in a Docker volume
 
-      - "--certificatesresolvers.resolver-prod.acme.email=${LETSENCRYPT_OWNER_EMAIL}"
+      - "--certificatesresolvers.prod.acme.email=${LETSENCRYPT_OWNER_EMAIL}"
                                                                                # tell lets-encrypt who owns the DNS domain
-      - "--certificatesresolvers.resolver-prod.acme.httpchallenge=true"
+      - "--certificatesresolvers.prod.acme.httpchallenge=true"
                                                                                # Use HTTP challenge protocol to verify ownership to lets-encrypt.
                                                                                #    lets-encrypt will send a challenge to http:<dns-name>:80/..."
                                                                                #    and traefik will respond with credentials. Then the cert will be issued.
-      - "--certificatesresolvers.resolver-prod.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.prod.acme.httpchallenge.entrypoint=web"
                                                                                # Use PUBLIC port 80 for ACME http challenges
 
       # "staging" certificate resolver uses staging lets-encrypt certificates
-      - "--certificatesresolvers.resolver-staging.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
-      - "--certificatesresolvers.resolver-staging.acme.storage=/acme/acme_staging.json"     
+      - "--certificatesresolvers.staging.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.staging.acme.storage=/acme/acme_staging.json"     
                                                                                # ACME state must be preserved so we put it in a Docker volume
 
-      - "--certificatesresolvers.resolver-staging.acme.email=${LETSENCRYPT_OWNER_EMAIL}"
+      - "--certificatesresolvers.staging.acme.email=${LETSENCRYPT_OWNER_EMAIL}"
                                                                                # tell lets-encrypt who owns the DNS domain
-      - "--certificatesresolvers.resolver-staging.acme.httpchallenge=true"     # Use HTTP challenge protocol to verify ownership to lets-encrypt.
+      - "--certificatesresolvers.staging.acme.httpchallenge=true"     # Use HTTP challenge protocol to verify ownership to lets-encrypt.
                                                                                #    lets-encrypt will send a challenge to http:<dns-name>:80/..."
                                                                                #    and traefik will respond with credentials. Then the cert will be issued.
-      - "--certificatesresolvers.resolver-staging.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.staging.acme.httpchallenge.entrypoint=web"
                                                                                # Use PUBLIC port 80 for ACME http challenges
 
       # Plugins
@@ -166,7 +166,7 @@ services:
       # A router for https://traefik.${PARENT_DNS_DOMAIN}
       # that only responds to LAN-local requests, and requires HTTP basic authentication.
       - "traefik.http.routers.traefik.entrypoints=lanwebsecure"
-      - "traefik.http.routers.traefik.tls.certResolver=resolver-${TRAEFIK_RESOLVER}"
+      - "traefik.http.routers.traefik.tls.certResolver=${TRAEFIK_CERT_RESOLVER}"
       - "traefik.http.routers.traefik.rule=Host(`traefik.${PARENT_DNS_DOMAIN}`) && (Path(`/`) || PathPrefix(`/api`,`/dashboard`))"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.middlewares=traefik-auth"

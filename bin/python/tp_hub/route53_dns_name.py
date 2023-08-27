@@ -13,7 +13,7 @@ import boto3
 from boto3 import Session
 from botocore.client import BaseClient
 from mypy_boto3_route53 import Route53Client
-from mypy_boto3_route53.type_defs import HostedZoneTypeDef, ResourceRecordSetTypeDef, ResourceRecordTypeDef
+from mypy_boto3_route53.type_defs import HostedZoneTypeDef, ResourceRecordSetOutputTypeDef, ResourceRecordSetTypeDef, ResourceRecordTypeDef
 from threading import Lock
 from .internal_types import *
 from .pkg_logging import logger
@@ -51,10 +51,10 @@ class AwsContext:
         self._lock = Lock()
         if aws_session is None:
             if from_aws_client is not None and hasattr(from_aws_client, '_internal_aws_context'):
-                aws_session: Session = from_aws_client._internal_aws_context.aws_session
+                aws_session = cast(Session, from_aws_client._internal_aws_context.aws_session)   # type: ignore[attr-defined]
             else:
                 aws_session = boto3.session.Session(**kwargs)
-                aws_session._internal_aws_context = self
+                aws_session._internal_aws_context = self  # type: ignore[attr-defined]
         self.aws_session = aws_session
         self.clients = {}
 
@@ -62,8 +62,8 @@ class AwsContext:
         with self._lock:
             client = self.clients.get(client_name)
             if client is None:
-                client = self.aws_session.client(client_name)
-                client._internal_aws_context = self
+                client = cast(BaseClient, self.aws_session.client(client_name))   # type: ignore[call-overload]
+                client._internal_aws_context = self             # type: ignore[attr-defined]
                 self.clients[client_name] = client
         return client
     
@@ -82,11 +82,11 @@ def get_aws(aws: Optional[AwsContext]=None, aws_session: Optional[Session]=None,
         return aws
     if aws_session is not None:
         if hasattr(aws, '_internal_aws_context'):
-            aws: AwsContext = aws_session._internal_aws_context
+            aws = cast(AwsContext, aws_session._internal_aws_context)  # type: ignore[attr-defined]
         else:
             aws = AwsContext(aws_session=aws_session)
     elif aws_client is not None and hasattr(aws_client, '_internal_aws_context'):
-        aws: AwsContext = aws_client._internal_aws_context
+        aws = cast(AwsContext, aws_client._internal_aws_context)   # type: ignore[attr-defined]
     else:
         aws = AwsContext()
     return aws
@@ -170,7 +170,7 @@ def get_all_resource_record_sets(
         zone_id: str,
         *,
         start_record_name: Optional[str]=None,
-      ) -> Generator[ResourceRecordSetTypeDef, None, None]:
+      ) -> Generator[ResourceRecordSetOutputTypeDef, None, None]:
     """
     Get all resource record sets for a hosted zone
     """
@@ -191,7 +191,7 @@ def get_resource_record_sets(
         aws: AwsContext,
         zone_id: str,
         record_name: str,
-      ) -> List[ResourceRecordSetTypeDef]:
+      ) -> List[ResourceRecordSetOutputTypeDef]:
     """
     Get all resource record sets for a specific name in a hosted zone
     The name can be a fully qualified name or a simple subdomain of the hosted zone.
@@ -212,7 +212,7 @@ def get_resource_record_sets(
         record_short_name, record_parent_name = record_full_name.split(".", 1)
         if record_parent_name != full_hosted_zone_name:
             raise HubError(f"record_name {record_name} is not a simple subdomain of hosted zone {hosted_zone_name}")
-    result: List[ResourceRecordSetTypeDef] = []
+    result: List[ResourceRecordSetOutputTypeDef] = []
     for record_set in get_all_resource_record_sets(aws, zone_id, start_record_name=record_full_name):
         if record_set['Name'] != record_full_name:
             break
@@ -220,7 +220,9 @@ def get_resource_record_sets(
 
     return result
 
-def resource_record_sets_are_equal(rs1: ResourceRecordSetTypeDef, rs2: ResourceRecordSetTypeDef) -> bool:
+def resource_record_sets_are_equal(
+        rs1: Union[ResourceRecordSetTypeDef, ResourceRecordSetOutputTypeDef],
+        rs2: Union[ResourceRecordSetTypeDef, ResourceRecordSetOutputTypeDef]) -> bool:
     """
     Compare two resource record sets for equality
     """
@@ -286,7 +288,7 @@ def delete_route53_dns_name(
             Changes=[
                 dict(
                     Action='DELETE',
-                    ResourceRecordSet=record_set,
+                    ResourceRecordSet=cast(ResourceRecordSetTypeDef, record_set),
                 ) for record_set in record_sets
             ],
         ),

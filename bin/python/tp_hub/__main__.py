@@ -17,9 +17,9 @@ import argparse
 import json
 import logging
 
-from rpi_hub.internal_types import *
+from tp_hub.internal_types import *
 
-from rpi_hub import (
+from tp_hub import (
     __version__ as pkg_version,
     Jsonable, JsonableDict, JsonableList,
     HubConfig,
@@ -40,7 +40,7 @@ from rpi_hub import (
     logger,
   )
 
-from rpi_hub.route53_dns_name import create_route53_dns_name, get_aws, AwsContext
+from tp_hub.route53_dns_name import create_route53_dns_name, get_aws, AwsContext
 
 PROGNAME = "rpi-hub"
 
@@ -160,6 +160,8 @@ class CommandHandler:
 
         print("\nPrerequisites installed successfully", file=sys.stderr)
 
+        return 0
+
 
     def run(self) -> int:
         """Run the command-line tool with provided arguments
@@ -267,13 +269,6 @@ class CommandHandler:
 def run(argv: Optional[Sequence[str]]=None) -> int:
     try:
         rc = CommandHandler(argv).run()
-    except CmdExitError as ex:
-        rc = ex.exit_code
-    return rc
-
-async def arun(argv: Optional[Sequence[str]]=None) -> int:
-    try:
-        rc = await CommandHandler(argv).arun()
     except CmdExitError as ex:
         rc = ex.exit_code
     return rc

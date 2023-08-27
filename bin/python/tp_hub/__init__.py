@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 """
-Package hub_util
-
 Handy Python utilities for this project
 """
 
@@ -15,7 +13,7 @@ from .pkg_logging import logger
 from .hub_config import HubConfig
 
 from .proj_dirs import (
-    get_hub_util_package_dir,
+    get_tp_hub_package_dir,
     get_project_python_dir,
     get_project_bin_dir,
     get_project_dir,

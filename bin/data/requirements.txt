@@ -4,3 +4,4 @@ bcrypt==4.0.1
 typing_extensions==4.7.1
 boto3-stubs[essential,route53]==1.28.34
 ruamel.yaml==0.17.32
+types-urllib3==1.26.25.14

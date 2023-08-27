@@ -19,7 +19,7 @@ from threading import Lock
 _lock = Lock()
 
 @cache
-def get_hub_util_package_dir() -> str:
+def get_tp_hub_package_dir() -> str:
     """
     Get the path to the directory containing this package
     """
@@ -33,7 +33,7 @@ def get_pkg_data_dir() -> str:
     """
     # This is a bit of a hack, but it works
     # If we eventually make this an installable package, we'll need to do something else.
-    return os.path.join(get_hub_util_package_dir(), "data")
+    return os.path.join(get_tp_hub_package_dir(), "data")
 
 _project_dir: Optional[str] = None
 
@@ -52,7 +52,7 @@ def get_project_dir() -> str:
     global _project_dir
     with _lock:
         if _project_dir is None:
-            _project_dir = os.path.abspath(os.path.join(get_hub_util_package_dir(), "..", "..", ".."))
+            _project_dir = os.path.abspath(os.path.join(get_tp_hub_package_dir(), "..", "..", ".."))
         result = _project_dir
     return result
 

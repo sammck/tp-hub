@@ -5,8 +5,6 @@
 #
 
 """
-Package hub_util
-
 Handy Python utilities for this project
 """
 
@@ -199,23 +197,24 @@ def docker_call_output(
     Automatically uses sudo if login session is not yet in the "docker" group.
     If an error occurs, stderr output is printed and an exception is raised.
     """
-    logger.debug(f"docker_call_output: Running {['docker']+args}, cwd={cwd}")
+    logger.debug(f"docker_call_output: Running {['docker']+args}, cwd={cwd!r}")
+    result_bytes: bytes
     if stderr_exception:
-        result_bytes: bytes = sudo_check_output_stderr_exception(
+        result_bytes = cast(bytes, sudo_check_output_stderr_exception(
             ["docker"] + args,
             use_sudo=False,
             run_with_group="docker",
             env=env,
             cwd=cwd,
-        )
+        ))
     else:
-        result_bytes: bytes = sudo_check_output(
+        result_bytes = cast(bytes, sudo_check_output(
             ["docker"] + args,
             use_sudo=False,
             run_with_group="docker",
             env=env,
             cwd=cwd,
-        )
+        ))
     return result_bytes.decode("utf-8")
 
 @cache

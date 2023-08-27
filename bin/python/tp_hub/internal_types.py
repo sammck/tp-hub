@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import (
     Dict, List, Optional, Union, Any, TypeVar, Tuple,
     Callable, Iterable, Iterator, Generator, cast, TYPE_CHECKING,
-    Mapping, ParamSpec, Concatenate, Sequence,
+    Mapping, MutableMapping, ParamSpec, Concatenate, Sequence,
   )
 
 from types import TracebackType

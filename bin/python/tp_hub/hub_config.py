@@ -364,7 +364,7 @@ class HubConfig:
   @base_stack_env.setter
   def base_stack_env(self, value: Optional[Mapping[str, str]]) -> None:
     v = None if value is None else dict(value)
-    self._base_stack_env = value
+    self._base_stack_env = v
     self._dirty = True
 
   def update_base_stack_env(self, *args, **kwargs) -> Dict[str, str]:
@@ -376,6 +376,7 @@ class HubConfig:
   
   def set_base_stack_env_var(self, name: str, value: str) -> Dict[str, str]:
     self.update_base_stack_env([(name, value)])
+    return self.base_stack_env
 
   _traefik_stack_env: Optional[Dict[str, str]] = None
 
@@ -392,7 +393,7 @@ class HubConfig:
   @traefik_stack_env.setter
   def traefik_stack_env(self, value: Optional[Mapping[str, str]]) -> None:
     v = None if value is None else dict(value)
-    self._traefik_stack_env = value
+    self._traefik_stack_env = v
     self._dirty = True
 
   def update_traefik_stack_env(self, *args, **kwargs) -> Dict[str, str]:
@@ -404,6 +405,7 @@ class HubConfig:
   
   def set_traefik_stack_env_var(self, name: str, value: str) -> Dict[str, str]:
     self.update_traefik_stack_env([(name, value)])
+    return self.traefik_stack_env
 
   _portainer_stack_env: Optional[Dict[str, str]] = None
 
@@ -420,7 +422,7 @@ class HubConfig:
   @portainer_stack_env.setter
   def portainer_stack_env(self, value: Optional[Mapping[str, str]]) -> None:
     v = None if value is None else dict(value)
-    self._portainer_stack_env = value
+    self._portainer_stack_env = v
     self._dirty = True
 
   def update_portainer_stack_env(self, *args, **kwargs) -> Dict[str, str]:
@@ -432,6 +434,7 @@ class HubConfig:
   
   def set_portainer_stack_env_var(self, name: str, value: str) -> Dict[str, str]:
     self.update_portainer_stack_env([(name, value)])
+    return self.portainer_stack_env
   
   _base_app_stack_env: Optional[Dict[str, str]] = None  
 
@@ -451,7 +454,7 @@ class HubConfig:
   @base_app_stack_env.setter
   def base_app_stack_env(self, value: Optional[Mapping[str, str]]) -> None:
     v = None if value is None else dict(value)
-    self._base_app_stack_env = value
+    self._base_app_stack_env = v
     self._dirty = True
 
   def update_base_app_stack_env(self, *args, **kwargs) -> Dict[str, str]:
@@ -463,6 +466,7 @@ class HubConfig:
   
   def set_base_app_stack_env_var(self, name: str, value: str) -> Dict[str, str]:
     self.update_base_app_stack_env([(name, value)])
+    return self.base_app_stack_env
 
   _portainer_runtime_env: Optional[Dict[str, str]] = None
 
@@ -475,13 +479,13 @@ class HubConfig:
     # Inherits from base_app_stack_env.
     """
     if self._portainer_runtime_env is None:
-      self._portainer_riuntime_env = {}
+      self._portainer_runtime_env = {}
     return self._portainer_runtime_env
   
   @portainer_stack_env.setter
   def portainer_runtime_env(self, value: Optional[Mapping[str, str]]) -> None:
     v = None if value is None else dict(value)
-    self._portainer_runtime_env = value
+    self._portainer_runtime_env = v
     self._dirty = True
 
   def update_portainer_runtime_env(self, *args, **kwargs) -> Dict[str, str]:
@@ -493,6 +497,7 @@ class HubConfig:
   
   def set_portainer_runtime_env_var(self, name: str, value: str) -> Dict[str, str]:
     self.update_portainer_runtime_env([(name, value)])
+    return self.portainer_runtime_env
   
   _dirty: bool = True
   """True if a property has changed and merged views must be recomputed"""
@@ -639,7 +644,7 @@ class HubConfig:
     Update the hub configuration from a YAML config
     """
     if isinstance(data, Mapping) and "hub" in data:
-      hub_data: MappingNode = data["hub"]
+      hub_data = cast(Mapping[str, Any], data["hub"])
       self.update_from_map(hub_data)
 
   def iter_keys(self) -> Iterator[str]:
@@ -686,7 +691,7 @@ class HubConfig:
     return deepcopy(v)
 
   def yaml_deep_update(self, v1: Any, v2: Any) -> Any:
-    if isinstance(v1, Mapping) and isinstance(v2, Mapping):
+    if isinstance(v1, MutableMapping) and isinstance(v2, Mapping):
       result = v1
       for k, v in v2.items():
         if k in result:
@@ -708,7 +713,9 @@ class HubConfig:
     """
     Update a YAML object from this config
     """
-    self.yaml_deep_merge(obj, self.to_dict())
+    result = self.yaml_deep_merge(obj, self.to_dict())
+    return cast(MappingNode, result)
+
 
   def to_yaml_obj(self, y: Optional[YAML]=None, include_comments: bool=False):
     result = self.yaml_deep_copy(self._base_config_yaml)

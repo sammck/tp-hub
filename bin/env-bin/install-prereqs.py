@@ -9,7 +9,7 @@ import logging
 
 from typing import Dict, List
 
-from rpi_hub import (
+from tp_hub import (
     Jsonable, JsonableDict, JsonableList,
     install_docker,
     docker_is_installed,
@@ -84,6 +84,7 @@ def main() -> int:
 
     print("\nPrerequisites installed successfully", file=sys.stderr)
 
+    return 0
 
 if __name__ == "__main__":
     rc = main()

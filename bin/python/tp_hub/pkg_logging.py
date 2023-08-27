@@ -5,7 +5,7 @@
 #
 
 """
-Logging for hub_util package.
+Logging for this package.
 """
 
 from __future__ import annotations

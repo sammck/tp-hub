@@ -3,7 +3,8 @@ version: "3.3"
 # docker-compose.yml configuration for a Traefik reverse-proxy with dashboard.
 #
 #  Environment Variables:
-#    PORTAINER_RESOLVER      "prod" or "staging".  The certificate resolver to use for portainer.{PARENT_DNS_DOMAIN}
+#    PORTAINER_CERT_RESOLVER
+#                            "prod" or "staging".  The certificate resolver to use for portainer.{PARENT_DNS_DOMAIN}
 #                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
 #    PARENT_DNS_DOMAIN       A registered public DNS domain that you control; e.g., "obama-family-home.com"
 #                                 The dashboard will use a certificate for traefik.${PARENT_DNS_DOMAIN}
@@ -102,7 +103,7 @@ services:
 
       # A router for https://portainer.${PARENT_DNS_DOMAIN}
       - "traefik.http.routers.portainer.entrypoints=lanwebsecure"
-      - "traefik.http.routers.portainer.tls.certresolver=resolver-${PORTAINER_RESOLVER}"
+      - "traefik.http.routers.portainer.tls.certresolver=${PORTAINER_CERT_RESOLVER}"
       - "traefik.http.routers.portainer.rule=Host(`portainer.${PARENT_DNS_DOMAIN}`)"
 
       # A router for http://portainer.${PARENT_DNS_DOMAIN} that redirects to https
