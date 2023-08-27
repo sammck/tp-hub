@@ -66,7 +66,13 @@ if [ -z "$_ABORT" ]; then
   fi
 
   # Activate the python virtualenv. This adds .venv/bin to PATH and exports PYTHON_VIRTUALENV
-  . "$_VENV/bin/activate" || _ABORT=$?
+  # If we have installed a hacky activate stub, then we want to invoke the
+  # ORIGINAL activate script
+  if [ -f "$_VENV/bin/orig_activate" ]; then
+    . "$_VENV/bin/orig_activate" || _ABORT=$?
+  else
+    . "$_VENV/bin/activate" || _ABORT=$?
+  fi
 fi
 
 if [ -z "$_ABORT" ]; then

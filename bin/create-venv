@@ -1,6 +1,10 @@
 #!/bin/bash
 
 # Creates the project python virtualenv and installs required python packages.
+# Also installs a custom hook to .venv/activate that will initialize
+# the entire environment, not just the python virtualenv. This makes tools
+# like vscode just work in terminals, etc.
+
 # -f option forces rebuild
 
 set -e
@@ -31,12 +35,59 @@ if ! command -v pip3 &>/dev/null; then
   sudo apt-get install -y python3-pip
 fi
 
+NEED_PIP_INSTALL=
 if [ ! -d "$VENV" ]; then
+  NEED_PIP_INSTALL=1
   if ! command -v virtualenv &>/dev/null; then
     pip3 install --user virtualenv >&2
   fi
   mkdir -p "$BUILD_DIR"
   virtualenv "$VENV" 1>&2
+fi
+
+# add a text file containing the path to the project directory in $VENV/bin, so that things inside the virtualenv can find the
+# project.  We use a text file instead of a symlink so that directory browsers don't recurse into the link.
+PROJECT_PATH_FILE="$VENV/bin/project-dir.txt"
+PROJECT_SYMLINK_TARGET="../../.."
+
+if [ -f "$PROJECT_PATH_FILE" ]; then
+    OLD_PROJECT_SYMLINK_TARGET="$(cat "$PROJECT_PATH_FILE")"
+    if [ "$OLD_PROJECT_SYMLINK_TARGET" != "$PROJECT_SYMLINK_TARGET" ]; then
+      # $VENV/bin/.project-dir is a text file containing path, but it points to the wrong place; remove it
+      rm "$PROJECT_PATH_FILE"
+    fi
+fi
+
+if [ ! -f "PROJECT_PATH_FILE" ]; then
+  echo "$PROJECT_SYMLINK_TARGET" > "$PROJECT_PATH_FILE"
+fi
+
+
+# Hack: Replace $VENV/bin/activate with our own activation script to add additional
+# environment settings
+ACTIVATE="$VENV/bin/activate"
+ORIG_ACTIVATE="$VENV/bin/orig_activate"
+# The target script is $PROJECT_DIR/bin/hub-env
+# Use a relative path to minimize impact if project is renamed or moved.
+ACTIVATE_REL_DIR="../../../bin"
+
+
+if [ ! -f "$ORIG_ACTIVATE" ]; then
+  # rename the original activate script to "orig_activate"
+  mv "$ACTIVATE" "$ORIG_ACTIVATE"
+fi
+
+rm -f "$ACTIVATE"
+cat << EOF > "$ACTIVATE"
+__SCRIPT_DIR=\$( cd -- "\$( dirname -- "\${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+__TARGET_DIR_fghjfh=\$( cd -- "\$__SCRIPT_DIR/${ACTIVATE_REL_DIR}" &> /dev/null && pwd )
+unset __SCRIPT_DIR
+. "\$__TARGET_DIR_fghjfh/hub-env"
+unset __TARGET_DIR_fghjfh
+EOF
+
+
+if [ -n "$NEED_PIP_INSTALL" ]; then
   "$VENV/bin/pip" install --upgrade pip >&2
-  "$VENV/bin/pip" install --upgrade -r "$SCRIPT_DIR/requirements.txt" >&2
+  "$VENV/bin/pip" install --upgrade -r "$SCRIPT_DIR/data/requirements.txt" >&2
 fi

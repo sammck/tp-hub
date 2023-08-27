@@ -10,9 +10,28 @@
   "[python]": {
         "editor.insertSpaces": true,
         "editor.tabSize": 2  
-      },   
-    "files.exclude": {
+      },
+  "files.exclude": {
       "/trash": true
     },
-    "terminal.integrated.env.linux": { "PYTHONPATH": "${workspaceFolder}/bin/python" },
+  "terminal.integrated.shellIntegration.enabled": false,
+  "terminal.integrated.profiles.linux": {
+      "bash": {
+        "path": "bash",
+      },
+      "zsh": {
+        "path": "zsh"
+      },
+      "fish": {
+        "path": "fish"
+      },
+      "tmux": {
+        "path": "tmux",
+        "icon": "terminal-tmux"
+      },
+      "pwsh": {
+        "path": "pwsh",
+        "icon": "terminal-powershell"
+      }
+    }
 }
