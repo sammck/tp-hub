@@ -1,0 +1,5 @@
+[foo]
+baz = "baz in foo"
+
+[foo.bar]
+baz = "baz in foo.bar"

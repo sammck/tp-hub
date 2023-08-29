@@ -359,7 +359,9 @@ MappingValue = Union[MappingScalarValue, Mapping[_KT, Any], Sequence[Any]]
 MutableMappingValue = Union[MappingScalarValue, MutableMapping[_KT, Any], MutableSequence[Any]]
 
 def shallow_make_mutable(value: MappingValue) -> MutableMappingValue:
-    if isinstance(value, Mapping) and not isinstance(value, MutableMapping):
+    if isinstance(value, (str, bytes)):
+        pass
+    elif isinstance(value, Mapping) and not isinstance(value, MutableMapping):
         value = dict(value)
     elif isinstance(value, Sequence) and not isinstance(value, MutableSequence):
         value = list(value)
@@ -372,7 +374,9 @@ def shallow_copy_mutable(value: MappingValue) -> MutableMappingValue:
 
 def deep_make_mutable(value: MappingValue) -> MutableMappingValue:
     mutable_value = shallow_make_mutable(value)
-    if isinstance(mutable_value, Mapping):
+    if isinstance(mutable_value, (str, bytes)):
+        pass
+    elif isinstance(mutable_value, Mapping):
         assert isinstance(mutable_value, MutableMapping)
         for k, v in mutable_value.items():
             if ((isinstance(v, Mapping) and not isinstance(v, MutableMapping)) or
@@ -404,15 +408,20 @@ def deep_merge_mutable(
             # Merging source map into dest map
             # If dest is not mutable, convert it into a dict
             mutable_dest = shallow_make_mutable(dest)
+            #if not mutable_dest is dest:
+            #    raise HubError(f"Non-mutable Mapping or Sequence passed to deep_merge_mutable: {type(dest)}")
             assert isinstance(mutable_dest, MutableMapping)
             for k, v in source.items():
                 if k in mutable_dest:
                     # key is present; just recurse to update it
                     new_v = deep_merge_mutable(mutable_dest[k], v, allow_retype_mapping=allow_retype_mapping)
+                    if mutable_dest[k] != new_v:
+                        del mutable_dest[k]  # delete the old value; tomlkit doesn't allow overwriting
+                        # raise HubError(f"Key = '{k}'; Attempt to replace {type(mutable_dest[k])} '''{mutable_dest[k]}'''with {type(new_v)} '''{new_v}'''")
+                        mutable_dest[k] = new_v
                 else:
                     # key is not present. make a deep mutable copy of source value.
                     new_v = deep_copy_mutable(v)
-                if not v is new_v:
                     mutable_dest[k] = new_v
             result = mutable_dest
         else:
@@ -477,3 +486,5 @@ def deep_update_mutable(
     mutable_dest = deep_merge_mutable(dest, update_mapping)
     assert isinstance(mutable_dest, MutableMapping)
     return mutable_dest
+
+

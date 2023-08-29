@@ -53,6 +53,7 @@ from .util import (
     download_url_text,
     resolve_public_dns,
     raw_resolve_public_dns,
+    deep_update_mutable,
   )
 
 from .docker_compose_stack import DockerComposeStack

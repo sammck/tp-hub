@@ -13,10 +13,12 @@ from __future__ import annotations
 from typing import (
     Dict, List, Optional, Union, Any, TypeVar, Tuple, overload,
     Callable, Iterable, Iterator, Generator, cast, TYPE_CHECKING,
-    Mapping, MutableMapping, ParamSpec, Concatenate, Sequence, MutableSequence, Set, MutableSet
+    Mapping, MutableMapping, ParamSpec, Concatenate, Sequence, MutableSequence, Set, MutableSet,
+    KeysView, ValuesView, ItemsView, Literal, IO,
   )
 
-from _typeshed import SupportsKeysAndGetItem
+if TYPE_CHECKING:
+    from _typeshed import SupportsKeysAndGetItem
 
 from types import TracebackType
 from typing_extensions import Self
