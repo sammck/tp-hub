@@ -74,6 +74,9 @@ class CommandHandler:
         if self._project_dir is None:
             self._project_dir = get_project_dir()
         return self._project_dir
+    
+    def get_build_dir(self) -> str:
+        return os.path.join(self.get_project_dir(), "build")
 
     def get_config(self) -> HubConfig:
         if self._config is None:
@@ -84,6 +87,13 @@ class CommandHandler:
         if self._aws is None:
             self._aws = get_aws()
         return self._aws
+
+
+    def rebuild_traefik_env(self) -> None:
+        traefik_compose_file = os.path.join(self.get_project_dir(), "traefik", "docker-compose.yml")
+        traefik_build_dir = os.path.join(self.get_build_dir(), "traefik")
+        output_file = os.path
+
 
     def __init__(self, argv: Optional[Sequence[str]]=None):
         self._argv = argv

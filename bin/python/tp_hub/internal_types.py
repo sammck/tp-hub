@@ -11,10 +11,12 @@ Common type definitions meant to be imported with "import *".
 from __future__ import annotations
 
 from typing import (
-    Dict, List, Optional, Union, Any, TypeVar, Tuple,
+    Dict, List, Optional, Union, Any, TypeVar, Tuple, overload,
     Callable, Iterable, Iterator, Generator, cast, TYPE_CHECKING,
-    Mapping, MutableMapping, ParamSpec, Concatenate, Sequence,
+    Mapping, MutableMapping, ParamSpec, Concatenate, Sequence, MutableSequence, Set, MutableSet
   )
+
+from _typeshed import SupportsKeysAndGetItem
 
 from types import TracebackType
 from typing_extensions import Self

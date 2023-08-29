@@ -17,7 +17,7 @@ import json
 import re
 import urllib3
 from functools import cache
-
+import copy
 from .internal_types import *
 from .internal_types import _CMD, _FILE, _ENV
 from .pkg_logging import logger
@@ -351,3 +351,129 @@ def resolve_public_dns(public_dns: str, error_on_empty: bool = True) -> List[str
     if len(results) == 0 and error_on_empty:
         raise HubError(f"Failed to resolve public DNS name {public_dns}: No A records found")
     return results
+
+_KT = TypeVar("_KT")
+_VT = TypeVar("_VT")
+MappingScalarValue  = Union[int, float, bool, str, bytes]
+MappingValue = Union[MappingScalarValue, Mapping[_KT, Any], Sequence[Any]]
+MutableMappingValue = Union[MappingScalarValue, MutableMapping[_KT, Any], MutableSequence[Any]]
+
+def shallow_make_mutable(value: MappingValue) -> MutableMappingValue:
+    if isinstance(value, Mapping) and not isinstance(value, MutableMapping):
+        value = dict(value)
+    elif isinstance(value, Sequence) and not isinstance(value, MutableSequence):
+        value = list(value)
+    return value
+
+def shallow_copy_mutable(value: MappingValue) -> MutableMappingValue:
+    value = copy.copy(value)
+    value = shallow_make_mutable(value)
+    return value
+
+def deep_make_mutable(value: MappingValue) -> MutableMappingValue:
+    mutable_value = shallow_make_mutable(value)
+    if isinstance(mutable_value, Mapping):
+        assert isinstance(mutable_value, MutableMapping)
+        for k, v in mutable_value.items():
+            if ((isinstance(v, Mapping) and not isinstance(v, MutableMapping)) or
+                (isinstance(v, Sequence) and not isinstance(v, MutableSequence))):
+                mutable_value[k] = deep_make_mutable(v)
+    elif isinstance(mutable_value, Sequence):
+        assert isinstance(mutable_value, MutableSequence)
+        for i, v in enumerate(mutable_value):
+            if ((isinstance(v, Mapping) and not isinstance(v, MutableMapping)) or
+                (isinstance(v, Sequence) and not isinstance(v, MutableSequence))):
+                mutable_value[i] = deep_make_mutable(v)
+    return mutable_value
+
+
+def deep_copy_mutable(value: MappingValue) -> MutableMappingValue:
+    result = copy.deepcopy(value)
+    result = deep_make_mutable(result)
+    return result
+
+def deep_merge_mutable(
+        dest: MappingValue,
+        source: MappingValue,
+        allow_retype_mapping: bool=False
+      ) -> MutableMappingValue:
+
+    result: MutableMappingValue
+    if isinstance(dest, Mapping):
+        if isinstance(source, Mapping):
+            # Merging source map into dest map
+            # If dest is not mutable, convert it into a dict
+            mutable_dest = shallow_make_mutable(dest)
+            assert isinstance(mutable_dest, MutableMapping)
+            for k, v in source.items():
+                if k in mutable_dest:
+                    # key is present; just recurse to update it
+                    new_v = deep_merge_mutable(mutable_dest[k], v, allow_retype_mapping=allow_retype_mapping)
+                else:
+                    # key is not present. make a deep mutable copy of source value.
+                    new_v = deep_copy_mutable(v)
+                if not v is new_v:
+                    mutable_dest[k] = new_v
+            result = mutable_dest
+        else:
+            # replacing a mapping with something else
+            if not allow_retype_mapping:
+                raise HubError(
+                    f"While merging data, an attempt was made to replace a Mapping type "
+                    f"{dest.__class__.__name__} with non-mapping type {source.__class__.__name__}")
+            result = deep_copy_mutable(source)
+    else:
+        result = deep_copy_mutable(source)
+    return result
+
+@overload
+def normalize_update_args(other: Mapping[_KT, _VT], __m: SupportsKeysAndGetItem[_KT, _VT], **kwargs: _VT) -> List[Tuple[_KT, _VT]]: ...
+
+@overload
+def normalize_update_args(other: Iterable[Tuple[_KT, _VT]], **kwargs: _VT) -> List[Tuple[_KT, _VT]]: ...
+
+@overload
+def normalize_update_args(other: Mapping[_KT, _VT], **kwargs: _VT) -> List[Tuple[_KT, _VT]]: ...
+
+@overload
+def normalize_update_args(other: None, **kwargs: _VT) -> List[Tuple[_KT, _VT]]: ...
+
+def normalize_update_args(other=None, /, **kwargs):
+    """
+    Normalize the arguments to MutableMapping.update() to be a list of key-value tuples
+    """
+    result = []
+    if not other is None:
+        if isinstance(other, Mapping):
+            for key in other:
+                result.append((key, other[key]))
+        elif hasattr(other, "keys"):
+            for key in other.keys():
+                result.append((key, other[key]))
+        else:
+            for key, value in other:
+                result.append((key, value))
+    for key, value in kwargs.items():
+        result.append((key, value))
+    return result
+
+@overload
+def deep_update_mutable(dest: MutableMapping[str, _VT], other: SupportsKeysAndGetItem[_KT, _VT], **kwargs: _VT) -> MutableMapping[_KT, _VT]: ...
+
+@overload
+def deep_update_mutable(dest: MutableMapping[str, _VT], other: Iterable[Tuple[_KT, _VT]], **kwargs: _VT) -> MutableMapping[_KT, _VT]: ...
+
+@overload
+def deep_update_mutable(dest: MutableMapping[str, _VT], **kwargs: _VT) -> MutableMapping[_KT, _VT]: ...
+
+def deep_update_mutable(
+        dest,
+        other=None,
+        /,
+        **kwargs
+      ):
+    updates = normalize_update_args(other, **kwargs)
+    update_mapping = dict(updates)
+    mutable_dest = deep_merge_mutable(dest, update_mapping)
+    assert isinstance(mutable_dest, MutableMapping)
+    return mutable_dest
