@@ -278,14 +278,22 @@ class CommandHandler:
     def cmd_cloud_dns_create_name(self) -> int:
         dns_name: str = self._args.dns_name
         dns_target: Optional[str] = self._args.dns_target
+        force: bool = self._args.force
+        settings = self.get_settings()
         if dns_target is None:
-            dns_target = self.get_config().stable_public_dns_name
+            dns_target = settings.stable_public_dns_name
 
         if not '.' in dns_name:
-            dns_name = f"{dns_name}.{self.get_config().parent_dns_domain}"
+            dns_name = f"{dns_name}.{settings.parent_dns_domain}"
 
         # TODO: Support other DNS providers
-        create_route53_dns_name(get_aws(), dns_name, dns_target, verify_public_ip=False)
+        create_route53_dns_name(
+            self.get_aws(),
+            dns_name,
+            dns_target,
+            verify_public_ip=False,
+            allow_overwrite=force,
+          )
         return 0
     
     def cmd_install_prereqs(self) -> int:
@@ -402,7 +410,10 @@ class CommandHandler:
 
         # ======================= cloud dns create-name
         sp = cloud_dns_subparsers.add_parser('create-name',
-                            help='''Use AWS Route53 or other cloud service to create a new CNAME or A record.''')
+                            help='''Use AWS Route53 or other cloud service to create a new CNAME or A record.
+                                    If the record already exists and matches, this command will silently succeed.''')
+        sp.add_argument('--force', "-f", action='store_true', default=False,
+                            help='Force replacement of the record if it already exists and is not matching.')
         sp.add_argument('--target,', '-t', dest='dns_target',
                             help='''The resolved target value for a 'CNAME' or 'A' DNS record to create. '''
                                  '''If a valid IPV4 address, an 'A' record will be created. Otherwise, '''

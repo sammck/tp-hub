@@ -72,6 +72,7 @@ from .util import (
     unindent_text,
     unindent_string_literal,
     is_valid_ipv4_address,
+    is_valid_dns_name,
     is_valid_dns_name_or_ipv4_address,
     is_valid_email_address,
   )
