@@ -16,6 +16,7 @@ import dotenv
 import argparse
 import json
 import logging
+import getpass
 
 from tp_hub.internal_types import *
 
@@ -40,6 +41,8 @@ from tp_hub import (
     HubSettings,
     get_config_yml_property,
     set_config_yml_property,
+    hash_username_password,
+    check_username_password,
   )
 
 from tp_hub.route53_dns_name import create_route53_dns_name, get_aws, AwsContext
@@ -143,7 +146,7 @@ class CommandHandler:
         data = json.loads(self.get_settings().model_dump_json())
         for name in property_name_parts:
             if not name in data:
-                raise ValueError(f"Property name {property_name} does not exist")
+                raise CmdExitError(1, f"Property name {property_name} does not exist")
             data = data[name]
 
         if raw and isinstance(data, str):
@@ -151,7 +154,33 @@ class CommandHandler:
         else:
             print(json.dumps(data, indent=2, sort_keys=True))
         return 0
-    
+
+    def cmd_config_set_traefik_password(self) -> int:
+        username = self._args.username
+        password = self._args.password
+        first = True
+        if password is None:
+            for i in range(5):
+                if not first:
+                    print("Passwords do not match; try again", file=sys.stderr)
+                first = False
+                password = getpass.getpass(f"Enter new password for user {username}: ")
+                confirm_password = getpass.getpass(f"Confirm new password for user {username}: ")
+                if password == confirm_password:
+                    break
+            else:
+                raise CmdExitError(1, "Too many attempts; password not reset")
+        hashed = hash_username_password(username, password)
+        set_config_yml_property(f"hub.traefik_dashboard_htpasswd", hashed)
+        return 0
+
+    def cmd_config_set_portainer_secret(self) -> int:
+        secret = self._args.secret
+        if secret is None:
+            secret = os.urandom(32).hex()
+        set_config_yml_property(f"hub.portainer_agent_secret", secret)
+        return 0
+
     def cmd_config_set(self) -> int:
         property_name: str = self._args.property_name
         property_value_str: str = self._args.property_value
@@ -180,7 +209,7 @@ class CommandHandler:
             if "type" in property:
                 allowed_types.add(property["type"])
             if "anyOf" in property:
-                allowed_types.update(property["anyOf"])
+                allowed_types.update(x["type"] for x in property["anyOf"])
             nullable = 'null' in allowed_types
             if nullable:
                 allowed_types.remove('null')
@@ -355,13 +384,31 @@ class CommandHandler:
 
         sp = config_subparsers.add_parser('set',
                                 description='''Set the value of a configuration property in config.yml.''')
-        parser.add_argument('--json', "--j", action='store_true', default=False,
+        sp.add_argument('--json', "--j", action='store_true', default=False,
                             help='Interpret the property value as JSON. Allows setting null values.')
         sp.add_argument('property_name',
                             help='''The property name to set; may be dotted to access sub-properties.''')
         sp.add_argument('property_value',
                             help='''The new value for the property. If the property is nullable, "<^null>" will set it to null. To escape this, use "<<^null>".''')
         sp.set_defaults(func=self.cmd_config_set)
+
+        # ======================= config set-traefik-password
+
+        sp = config_subparsers.add_parser('set-traefik-password',
+                                description='''Set the value of property traefik_dashboard_htpasswd in config.yml to a hash of a given username/password.''')
+        sp.add_argument('--user', '-u', type=str, dest='username', default='admin',
+                            help='''The username to use for logging into the Traefik dashboard. Default: admin''')
+        sp.add_argument('password', default=None, nargs='?',
+                            help='''The new password. If not provided, you will be prompted for a hidden password.''')
+        sp.set_defaults(func=self.cmd_config_set_traefik_password)
+
+        # ======================= config set-portainer-secret
+
+        sp = config_subparsers.add_parser('set-portainer-secret',
+                                description='''Set the value of property portainer_agent_secret in config.yml to a given secret passphrase.''')
+        sp.add_argument('secret', default=None, nargs='?',
+                            help='''The new secret passphrase. If not provided, a random 64-character hex string will be used.''')
+        sp.set_defaults(func=self.cmd_config_set_portainer_secret)
 
         # ======================= config schema
 
@@ -403,17 +450,17 @@ class CommandHandler:
             rc = func()
             logging.debug(f"Command {func.__name__} returned {rc}")
         except Exception as ex:
-            if isinstance(ex, CmdExitError):
+            is_exit_error = isinstance(ex, CmdExitError)
+            if is_exit_error:
                 rc = ex.exit_code
             else:
                 rc = 1
-            if rc != 0:
-                if traceback:
-                    raise
             ex_desc = str(ex)
             if len(ex_desc) == 0:
                 ex_desc = ex.__class__.__name__
             print(f"{PROGNAME}: error: {ex_desc}", file=sys.stderr)
+            if traceback:
+                raise
         except BaseException as ex:
             print(f"{PROGNAME}: Unhandled exception {ex.__class__.__name__}: {ex}", file=sys.stderr)
             raise
@@ -421,10 +468,7 @@ class CommandHandler:
         return rc
 
 def run(argv: Optional[Sequence[str]]=None) -> int:
-    try:
-        rc = CommandHandler(argv).run()
-    except CmdExitError as ex:
-        rc = ex.exit_code
+    rc = CommandHandler(argv).run()
     return rc
 
 # allow running with "python3 -m", or as a standalone script

@@ -71,9 +71,13 @@ def get_roundtrip_config_yml() -> YAMLContainer:
         result = _roundtrip_config_yml
     return deepcopy(result)
 
+_null_representer = lambda dumper, data: dumper.represent_scalar('tag:yaml.org,2002:null', 'null')
+
 def save_roundtrip_config_yml(data: YAMLContainer) -> None:
     pathname = get_config_yml_pathname()
     tmp_pathname = pathname + '.tmp'
+    ryaml = YAML()
+    ryaml.representer.add_representer(type(None), _null_representer)
     with _cache_lock:
         if os.path.exists(tmp_pathname):
             os.unlink(tmp_pathname)
@@ -84,7 +88,7 @@ def save_roundtrip_config_yml(data: YAMLContainer) -> None:
                     'w',
                     encoding='utf-8',
                   ) as fd:
-                YAML().dump(data, fd)
+                ryaml.dump(data, fd)
             _clear_config_yml_cache_no_lock()
             atomic_mv(tmp_pathname, pathname)
 

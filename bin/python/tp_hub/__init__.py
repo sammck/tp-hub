@@ -66,4 +66,6 @@ from .util import (
     unindent_string_literal,
   )
 
+from .password_hash import hash_username_password, check_username_password
+
 from .docker_compose_stack import DockerComposeStack
