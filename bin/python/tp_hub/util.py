@@ -18,6 +18,10 @@ import re
 import urllib3
 from functools import cache
 import copy
+
+from ruamel.yaml.comments import CommentedMap as YAMLContainer
+from tomlkit.container import Container as TOMLContainer
+
 from .internal_types import *
 from .internal_types import _CMD, _FILE, _ENV
 from .pkg_logging import logger
@@ -352,139 +356,78 @@ def resolve_public_dns(public_dns: str, error_on_empty: bool = True) -> List[str
         raise HubError(f"Failed to resolve public DNS name {public_dns}: No A records found")
     return results
 
-_KT = TypeVar("_KT")
-_VT = TypeVar("_VT")
-MappingScalarValue  = Union[int, float, bool, str, bytes]
-MappingValue = Union[MappingScalarValue, Mapping[_KT, Any], Sequence[Any]]
-MutableMappingValue = Union[MappingScalarValue, MutableMapping[_KT, Any], MutableSequence[Any]]
+def unindent_text(
+        text: str,
+        reindent: int=0,
+        strip_trailing_whitespace: bool=True,
+        disregard_first_line: bool=False,
+    ) -> str:
+    """
+    Remove common indentation from a multi-line string.
 
-def shallow_make_mutable(value: MappingValue) -> MutableMappingValue:
-    if isinstance(value, (str, bytes)):
-        pass
-    elif isinstance(value, Mapping) and not isinstance(value, MutableMapping):
-        value = dict(value)
-    elif isinstance(value, Sequence) and not isinstance(value, MutableSequence):
-        value = list(value)
-    return value
-
-def shallow_copy_mutable(value: MappingValue) -> MutableMappingValue:
-    value = copy.copy(value)
-    value = shallow_make_mutable(value)
-    return value
-
-def deep_make_mutable(value: MappingValue) -> MutableMappingValue:
-    mutable_value = shallow_make_mutable(value)
-    if isinstance(mutable_value, (str, bytes)):
-        pass
-    elif isinstance(mutable_value, Mapping):
-        assert isinstance(mutable_value, MutableMapping)
-        for k, v in mutable_value.items():
-            if ((isinstance(v, Mapping) and not isinstance(v, MutableMapping)) or
-                (isinstance(v, Sequence) and not isinstance(v, MutableSequence))):
-                mutable_value[k] = deep_make_mutable(v)
-    elif isinstance(mutable_value, Sequence):
-        assert isinstance(mutable_value, MutableSequence)
-        for i, v in enumerate(mutable_value):
-            if ((isinstance(v, Mapping) and not isinstance(v, MutableMapping)) or
-                (isinstance(v, Sequence) and not isinstance(v, MutableSequence))):
-                mutable_value[i] = deep_make_mutable(v)
-    return mutable_value
-
-
-def deep_copy_mutable(value: MappingValue) -> MutableMappingValue:
-    result = copy.deepcopy(value)
-    result = deep_make_mutable(result)
-    return result
-
-def deep_merge_mutable(
-        dest: MappingValue,
-        source: MappingValue,
-        allow_retype_mapping: bool=False
-      ) -> MutableMappingValue:
-
-    result: MutableMappingValue
-    if isinstance(dest, Mapping):
-        if isinstance(source, Mapping):
-            # Merging source map into dest map
-            # If dest is not mutable, convert it into a dict
-            mutable_dest = shallow_make_mutable(dest)
-            #if not mutable_dest is dest:
-            #    raise HubError(f"Non-mutable Mapping or Sequence passed to deep_merge_mutable: {type(dest)}")
-            assert isinstance(mutable_dest, MutableMapping)
-            for k, v in source.items():
-                if k in mutable_dest:
-                    # key is present; just recurse to update it
-                    new_v = deep_merge_mutable(mutable_dest[k], v, allow_retype_mapping=allow_retype_mapping)
-                    if mutable_dest[k] != new_v:
-                        del mutable_dest[k]  # delete the old value; tomlkit doesn't allow overwriting
-                        # raise HubError(f"Key = '{k}'; Attempt to replace {type(mutable_dest[k])} '''{mutable_dest[k]}'''with {type(new_v)} '''{new_v}'''")
-                        mutable_dest[k] = new_v
+    Args:
+        text:
+            The text to unindent
+        reindent:
+            The number of spaces to indent each line after unindenting
+        strip_trailing_whitespace:
+            If True, strip trailing whitespace from each line after unindenting
+        disregard_first_line:
+            If True, do not unindent or reindent the first line of text, and do not include it
+            when calculating the minimum indent of the remaining lines. Useful when normalizing
+            multiline Python string literals.
+    """
+    lines = text.split("\n")
+    if len(lines) == 0:
+        ## this should never happen; even an empty string should have one line after splitting
+        return ""
+    min_indent = sys.maxsize
+    for i, line in enumerate(lines):
+        if i > 0 or not disregard_first_line:
+            line_tail = line.lstrip()
+            if len(line_tail) == 0:
+                # ignore blank lines
+                continue
+            indent = len(line) - len(line_tail)
+            if indent < min_indent:
+                min_indent = indent
+    if strip_trailing_whitespace or reindent > 0 or min_indent > 0:
+        for i, line in enumerate(lines):
+            if i > 0 or not disregard_first_line:
+                if len(line) > min_indent:
+                    lines[i] = line[min_indent:]
                 else:
-                    # key is not present. make a deep mutable copy of source value.
-                    new_v = deep_copy_mutable(v)
-                    mutable_dest[k] = new_v
-            result = mutable_dest
-        else:
-            # replacing a mapping with something else
-            if not allow_retype_mapping:
-                raise HubError(
-                    f"While merging data, an attempt was made to replace a Mapping type "
-                    f"{dest.__class__.__name__} with non-mapping type {source.__class__.__name__}")
-            result = deep_copy_mutable(source)
-    else:
-        result = deep_copy_mutable(source)
-    return result
+                    lines[i] = ""
+            if strip_trailing_whitespace:
+                lines[i] = lines[i].rstrip()
+            if (i > 0 or not disregard_first_line) and (reindent > 0 and len(lines[i]) > 0):
+                lines[i] = " " * reindent + lines[i]
+    return "\n".join(lines)
 
-@overload
-def normalize_update_args(other: Mapping[_KT, _VT], __m: SupportsKeysAndGetItem[_KT, _VT], **kwargs: _VT) -> List[Tuple[_KT, _VT]]: ...
-
-@overload
-def normalize_update_args(other: Iterable[Tuple[_KT, _VT]], **kwargs: _VT) -> List[Tuple[_KT, _VT]]: ...
-
-@overload
-def normalize_update_args(other: Mapping[_KT, _VT], **kwargs: _VT) -> List[Tuple[_KT, _VT]]: ...
-
-@overload
-def normalize_update_args(other: None, **kwargs: _VT) -> List[Tuple[_KT, _VT]]: ...
-
-def normalize_update_args(other=None, /, **kwargs):
+def unindent_string_literal(
+        text: str,
+        reindent: int=0,
+        strip_trailing_whitespace: bool=True,
+        disregard_first_line: bool=True,
+    ) -> str:
     """
-    Normalize the arguments to MutableMapping.update() to be a list of key-value tuples
+    Remove common indentation from a multi-line string.
+
+    Args:
+        text:
+            The text to unindent
+        reindent:
+            The number of spaces to indent each line after unindenting
+        strip_trailing_whitespace:
+            If True, strip trailing whitespace from each line after unindenting
+        disregard_first_line:
+            If True, do not unindent or reindent the first line of text, and do not include it
+            when calculating the minimum indent of the remaining lines. Useful when normalizing
+            multiline Python string literals.
     """
-    result = []
-    if not other is None:
-        if isinstance(other, Mapping):
-            for key in other:
-                result.append((key, other[key]))
-        elif hasattr(other, "keys"):
-            for key in other.keys():
-                result.append((key, other[key]))
-        else:
-            for key, value in other:
-                result.append((key, value))
-    for key, value in kwargs.items():
-        result.append((key, value))
-    return result
-
-@overload
-def deep_update_mutable(dest: MutableMapping[str, _VT], other: SupportsKeysAndGetItem[_KT, _VT], **kwargs: _VT) -> MutableMapping[_KT, _VT]: ...
-
-@overload
-def deep_update_mutable(dest: MutableMapping[str, _VT], other: Iterable[Tuple[_KT, _VT]], **kwargs: _VT) -> MutableMapping[_KT, _VT]: ...
-
-@overload
-def deep_update_mutable(dest: MutableMapping[str, _VT], **kwargs: _VT) -> MutableMapping[_KT, _VT]: ...
-
-def deep_update_mutable(
-        dest,
-        other=None,
-        /,
-        **kwargs
-      ):
-    updates = normalize_update_args(other, **kwargs)
-    update_mapping = dict(updates)
-    mutable_dest = deep_merge_mutable(dest, update_mapping)
-    assert isinstance(mutable_dest, MutableMapping)
-    return mutable_dest
-
-
+    return unindent_text(
+        text,
+        reindent=reindent,
+        strip_trailing_whitespace=strip_trailing_whitespace,
+        disregard_first_line=disregard_first_line,
+      )

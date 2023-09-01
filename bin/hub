@@ -5,4 +5,4 @@ set -e
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # Run the script in the environment
-"$SCRIPT_DIR/hub-env" python3 -m rpi_hub "$@" || exit $?
+"$SCRIPT_DIR/hub-env" python3 -m tp_hub "$@" || exit $?

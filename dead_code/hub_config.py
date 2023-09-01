@@ -16,12 +16,12 @@ from io import StringIO
 from copy import deepcopy
 from ruamel.yaml import YAML, MappingNode, ScalarNode, SequenceNode
 from functools import cache
-from .internal_types import *
+from ..internal_types import *
 from threading import Lock
 
-from .internal_types import *
+from ..internal_types import *
 
-from .proj_dirs import get_project_dir
+from ..proj_dirs import get_project_dir
 
 YAMLNode = Union[MappingNode, ScalarNode, SequenceNode]
 

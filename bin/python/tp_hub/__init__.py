@@ -10,7 +10,16 @@ from .internal_types import *
 
 from .pkg_logging import logger
 
-from .hub_config import HubConfig
+from .config import (
+    HubSettings,
+    clear_config_yml_cache,
+    get_config_yml_pathname,
+    get_config_yml,
+    get_roundtrip_config_yml,
+    save_roundtrip_config_yml,
+    get_config_yml_property,
+    set_config_yml_property,
+  )
 
 from .proj_dirs import (
     get_tp_hub_package_dir,
@@ -53,7 +62,8 @@ from .util import (
     download_url_text,
     resolve_public_dns,
     raw_resolve_public_dns,
-    deep_update_mutable,
+    unindent_text,
+    unindent_string_literal,
   )
 
 from .docker_compose_stack import DockerComposeStack

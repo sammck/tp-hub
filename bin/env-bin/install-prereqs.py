@@ -24,8 +24,11 @@ from tp_hub import (
     get_gateway_lan_ip_address,
     get_lan_ip_address,
     get_default_interface,
+    get_project_dir,
     logger,
   )
+
+from tp_hub.config.config_yaml_generator import generate_settings_yaml
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install prerequisites for this project")
@@ -64,12 +67,21 @@ def main() -> int:
     # Create the "portainer_data" volume if it doesn't exist:
     create_docker_volume("portainer_data")
 
+    project_dir = get_project_dir()
+    config_yml_file = os.path.join(project_dir, "config.yml")
+    if not os.path.exists(config_yml_file):
+        print(f"Generating initial local config file {config_yml_file}")
+        config_yml_content = generate_settings_yaml()
+        with open(config_yml_file, 'w', encoding='utf-8') as fd:
+            fd.write(config_yml_content)
+
     public_ip_addr = get_public_ip_address()
     gateway_lan_ip_addr = get_gateway_lan_ip_address()
     lan_ip_addr = get_lan_ip_address()
     default_interface = get_default_interface()
 
     print(file=sys.stderr)
+    print(f"Local hub config file: {config_yml_file}", file=sys.stderr)
     print(f"Default interface: {default_interface}", file=sys.stderr)
     print(f"Gateway LAN IP address: {gateway_lan_ip_addr}", file=sys.stderr)
     print(f"Public IP address: {public_ip_addr}", file=sys.stderr)

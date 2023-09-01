@@ -5,13 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "hub commandline",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "env": {"PYTHONPATH": "${workspaceFolder}/bin/python${pathSeparator}${env:PYTHONPATH}"}
+            "module": "tp_hub",
+            "args": [
+                "--tb",
+                "--log-level=debug",
+                "config",
+                "set",
+                "parent_dns_domain",
+                "mckelvie-home.com"
+            ]
         }
     ]
 }

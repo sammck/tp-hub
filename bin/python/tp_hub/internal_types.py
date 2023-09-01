@@ -13,14 +13,26 @@ from __future__ import annotations
 from typing import (
     Dict, List, Optional, Union, Any, TypeVar, Tuple, overload,
     Callable, Iterable, Iterator, Generator, cast, TYPE_CHECKING,
-    Mapping, MutableMapping, ParamSpec, Concatenate, Sequence, MutableSequence, Set, MutableSet,
-    KeysView, ValuesView, ItemsView, Literal, IO,
+    Mapping, MutableMapping, ParamSpec, Concatenate, Sequence, MutableSequence, Set, AbstractSet, MutableSet,
+    KeysView, ValuesView, ItemsView, Literal, IO, Generic, Type
   )
 
 if TYPE_CHECKING:
     from _typeshed import SupportsKeysAndGetItem
 
-from types import TracebackType
+# mypy really struggles with this
+if TYPE_CHECKING:
+  from subprocess import _CMD, _FILE, _ENV
+  from _typeshed import StrOrBytesPath
+else:
+  _CMD = Any
+  _FILE = Any
+  _ENV = Any
+  StrOrBytesPath = Any
+
+
+from enum import Enum
+from types import TracebackType, NoneType
 from typing_extensions import Self
 
 from project_init_tools.internal_types import Jsonable, JsonableDict, JsonableList
@@ -33,13 +45,9 @@ class HubError(Exception):
 
 HostAndPort = Tuple[str, int]
 
-# mypy really struggles with this
-if TYPE_CHECKING:
-  from subprocess import _CMD, _FILE, _ENV
-  from _typeshed import StrOrBytesPath
-else:
-  _CMD = Any
-  _FILE = Any
-  _ENV = Any
-  StrOrBytesPath = Any
+class ContentType(Enum):
+    YAML = 1
+    TOML = 2
+    JSON = 3
+
 
