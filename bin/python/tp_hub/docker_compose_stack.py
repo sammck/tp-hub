@@ -40,8 +40,14 @@ class DockerComposeStack:
     down_options: List[str]
     """The options to pass to docker-compose for the "down" command"""
 
-    down_before_up: bool
-    """Whether to call "down" before up when the context is entered"""
+    auto_down_on_enter: bool
+    """Whether to automatically call "down" when the context is entered. If combined with auto_up,
+       the stack is brought down, then up again"""
+
+    auto_up: bool
+    """Whether to automatically call "up" when the context is entered. If combined with auto_down_on_enter,
+       the stack is brought down, then up again"""
+
 
     auto_down: bool
     """Whether to automatically call "down" when the context is exited"""
@@ -69,14 +75,15 @@ class DockerComposeStack:
             compose_file: Optional[Union[str, List[str]]]=None,
             *,
             options: Optional[List[str]]=None,
-            env_file: Optional[str]=None,
+            env_file: Optional[Union[str, List[str]]]=None,
             parallel: Optional[int]=None,
             profile: Optional[Union[str, List[str]]]=None,
             progress: Optional[str]=None,
             project_directory: Optional[str]=None,
             project_name: Optional[str]=None,
             name: Optional[str]=None,
-            down_before_up: bool=False,
+            auto_down_on_enter: bool=False,
+            auto_up: bool=True,
             auto_down: bool=False,
             up_options: Optional[List[str]]=None,
             down_options: Optional[List[str]]=None,
@@ -103,7 +110,137 @@ class DockerComposeStack:
             cwd: Optional[str]=None,
             up_stderr_exception: bool=False,
           ):
-        self.down_before_up = down_before_up
+        """
+        Create a DockerComposeStack instance, which provides
+        a configuration and context for a docker-compose stack
+        in which docker-compose commands/operations can be executed.
+
+        Args:
+            compose_file:
+                The docker-compose file(s) to use. If a string, it is
+                the path to a single docker-compose file. If a list of strings,
+                each string is the path to a docker-compose file. By default,
+                the docker-compose.yml file in the working directory directory is used.
+
+            options:
+                Additional command-line options to pass to docker-compose for all commands.
+
+            env_file:
+                One or more path(s) to environment file(s) to use when calling docker-compose.
+
+            parallel:
+                The number of containers to start in parallel. Defaults to 1.
+
+            profile:
+                The name of one or more profiles to use when calling docker-compose.
+
+            progress:
+                Set type of progress output (auto, plain, tty). Defaults to "auto".
+
+            project_directory:
+                The directory in which docker-compose is evaluated. Defaults to
+                the directory containing the first evaluated compose file
+
+            project_name:
+                The name of the docker-compose project. Defaults to the basename of the
+                docker-compose project directory.
+
+            name:
+                A friendly name of the stack, for logging purposes. Defaults to the project name.
+
+            auto_down_on_enter:
+                Whether to bring the stack down before bringing it up when the context is entered.
+                If combined with auto_up, the stack is brought down, then up again.
+
+            auto_up:
+                Whether to automatically bring the stack up when the context is entered.
+                If combined with auto_down_on_enter, the stack is brought down, then up again.
+
+            auto_down:
+                Whether to automatically bring the stack down when the context is exited.
+
+            up_options:
+                Additional command-line options to pass to docker-compose for the "up" command.
+
+            down_options:
+                Additional command-line options to pass to docker-compose for the "down" command.
+
+            build:
+                Build images before starting containers. Defaults to False.
+
+            no_build:
+                Don't build images before starting containers. Defaults to False.
+
+            always_recreate_deps:
+                Recreate dependent containers. Defaults to False.
+
+            force_recreate:
+                Recreate containers even if their configuration and image haven't changed.
+                Defaults to False.
+
+            no_deps:
+                Don't start linked services. Defaults to False.
+
+            no_log_prefix:
+                Don't print prefix in logs. Defaults to False.
+
+            no_recreate:
+                If containers already exist, don't recreate them. Defaults to False.
+
+            no_start:
+                Don't start containers after creating them. Defaults to False.
+
+            pull:
+                Pull image before running ("always"|"missing"|"never"). Defaults to "missing"
+
+            quiet_pull:
+                Pull without printing progress information. Defaults to False.
+
+            remove_orphans:
+                Remove containers for services not defined in the Compose file. Defaults to True.
+
+            renew_anon_volumes:
+                Recreate anonymous volumes instead of retrieving data from the previous containers.
+                Defaults to False.
+
+            timeout:
+                Use this timeout in seconds for container shutdown when attached or when containers
+                are already running. Defaults to 10.
+
+            timestamps:
+                Show timestamps. Defaults to False.
+
+            wait:
+                Wait for services to be running/healthy on up. Defaults to False.
+
+            wait_timeout:
+                Timeout waiting for services to be running/healthy. Defaults to 10.
+
+            remove_local_images:
+                On down, remove local images used by an service that
+                don't have a custom tag.
+
+            remove_all_images:
+                On down, remove all images used by any service.
+
+            env:
+                The base environment in which to run docker-compose. Must include the operating
+                environment (search PATH, etc). Defaults to os.environ.
+
+            additional_env:
+                Additional environment variables to set when running docker-compose. Variables
+                in this dictionary override those in the base environment.
+
+            cwd:
+                The current working directory to use when running docker-compose. Defaults to
+                the current working directory at the time the command is invoked.
+
+            up_stderr_exception:
+                Whether to capture stderr and include in exception when the context is entered.
+                By default, stderr is not captured and is printed to the console.
+        """
+        self.auto_down_on_enter = auto_down_on_enter
+        self.auto_up = auto_up
         self.auto_down = auto_down
         self.up_stderr_exception = up_stderr_exception
         if cwd is not None:
@@ -112,7 +249,13 @@ class DockerComposeStack:
         if options is not None:
             self.options.extend(options)
         if env_file is not None:
-            self.options.extend(["--env-file", env_file])
+            if isinstance(env_file, str):
+                self.options.extend(["--env-file", env_file])
+            else:
+                assert isinstance(env_file, list)
+                for env_filename in env_file:
+                    assert isinstance(env_filename, str)
+                    self.options.extend(["--env-file", env_filename])
         if parallel is not None:
             self.options.extend(["--parallel", str(parallel)])
         if profile is not None:
@@ -161,7 +304,9 @@ class DockerComposeStack:
                         option_pairs.append((option_name, option_value))
                     else:
                         option_name = option
-                        has_value_arg = option_name in ["--file", "--project-name", "--project-directory"]
+                        has_value_arg = option_name in [
+                            "--ansi", "--env-file", "--file", "--parallel", "--profile",
+                            "--progress","--project-directory", "--project-name"]
                 else:
                     for i_opt_ch, opt_ch in enumerate(option[1:]):
                         option_name = "-" + opt_ch
@@ -306,13 +451,18 @@ class DockerComposeStack:
         self.call(["logs"] + options)
 
     def __enter__(self) -> DockerComposeStack:
+        """Enters a context for the stack, bringing it down if auto_down_on_enter is True,
+           then bringing it up if auto_up is True.
+        """
         try:
-            if self.down_before_up:
+            if self.auto_down_on_enter:
                 self.down()
-            self.up(stderr_exception=self.up_stderr_exception)
+            if self.auto_up:
+                self.up(stderr_exception=self.up_stderr_exception)
         except BaseException as e:
-            logger.debug("Failed to start docker-compose stack; tearing down")
-            self.down()
+            if self.auto_up:
+                logger.debug("Failed to start docker-compose stack; tearing down")
+                self.down()
             raise
         return self
     
@@ -322,6 +472,7 @@ class DockerComposeStack:
             exc_val: Optional[BaseException],
             exc_tb: TracebackType
           ) -> None:
+        """Exits a context for the stack, bringing it down if auto_down is True"""
         if self.auto_down:
             self.down()
 

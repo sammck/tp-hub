@@ -112,7 +112,7 @@ class CommandHandler:
 
     def cmd_bare(self) -> int:
         print("Error: A command is required\n", file=sys.stderr)
-        self._parser.print_help(sys.stderr)
+        self._args.subparser.print_help(sys.stderr)
         return 1
 
     def cmd_version(self) -> int:
@@ -325,7 +325,16 @@ class CommandHandler:
         print("\nPrerequisites installed successfully", file=sys.stderr)
 
         return 0
+            
+    def cmd_traefik_bare(self) -> int:
+        print("Error: A command is required\n", file=sys.stderr)
+        self._args.subparser.print_help(sys.stderr)
+        return 1
 
+    def cmd_portainer_bare(self) -> int:
+        print("Error: A command is required\n", file=sys.stderr)
+        self._args.subparser.print_help(sys.stderr)
+        return 1
 
     def run(self) -> int:
         """Run the command-line tool with provided arguments
@@ -354,12 +363,12 @@ class CommandHandler:
         parser.add_argument('--log-level', '-l', type=str.lower, dest='log_level', default='warning',
                             choices=['debug', 'infos', 'warning', 'error', 'critical'],
                             help='''The logging level to use. Default: warning''')
-        parser.set_defaults(func=self.cmd_bare)
+        parser.set_defaults(func=self.cmd_bare, subparser=parser)
 
         subparsers = parser.add_subparsers(
                             title='Commands',
                             description='Valid commands',
-                            help='Additional help available with "<command-name> -h"')
+                            help=f'Additional help available with "{PROGNAME} <command-name> -h"')
 
         # ======================= create-dns-name
         sp = subparsers.add_parser('create-dns-name',
@@ -372,7 +381,7 @@ class CommandHandler:
         sp.add_argument('dns_name',
                             help='''The DNS name to create. If a simple subdomain, '''
                                  '''f"{value}.{config.parent_dns_name}" will be used''')
-        sp.set_defaults(func=self.cmd_create_dns_name)
+        sp.set_defaults(func=self.cmd_create_dns_name, subparser=sp)
 
         # ======================= config
 
@@ -382,7 +391,7 @@ class CommandHandler:
         config_subparsers = sp.add_subparsers(
                             title='Subcommands',
                             description='Valid subcommands',
-                            help='Additional help available with "config <subcommand-name> -h"')
+                            help=f'Additional help available with "{PROGNAME} config <subcommand-name> -h"')
 
         # ======================= config get-yml
 
@@ -392,7 +401,7 @@ class CommandHandler:
                             help='If the value is a string, output it in raw form without encoding as JSON, and without appending a newline. No effect if not a string.')
         sp.add_argument('property_name', default=None, nargs='?',
                             help='''The property name to get; may be dotted to access sub-properties. By default, the entire hub configuration is displayed.''')
-        sp.set_defaults(func=self.cmd_config_get_yml)
+        sp.set_defaults(func=self.cmd_config_get_yml, subparser=sp)
 
         # ======================= config get
 
@@ -402,7 +411,7 @@ class CommandHandler:
                             help='If the value is a string, output it in raw form without encoding as JSON, and without appending a newline. No effect if not a string.')
         sp.add_argument('property_name', default=None, nargs='?',
                             help='''The property name to get; may be dotted to access sub-properties. By default, the entire hub configuration is displayed.''')
-        sp.set_defaults(func=self.cmd_config_get)
+        sp.set_defaults(func=self.cmd_config_get, subparser=sp)
 
         # ======================= config set
 
@@ -414,7 +423,7 @@ class CommandHandler:
                             help='''The property name to set; may be dotted to access sub-properties.''')
         sp.add_argument('property_value',
                             help='''The new value for the property. If the property is nullable, "<^null>" will set it to null. To escape this, use "<<^null>".''')
-        sp.set_defaults(func=self.cmd_config_set)
+        sp.set_defaults(func=self.cmd_config_set, subparser=sp)
 
         # ======================= config set-traefik-password
 
@@ -424,7 +433,7 @@ class CommandHandler:
                             help='''The username to use for logging into the Traefik dashboard. Default: admin''')
         sp.add_argument('password', default=None, nargs='?',
                             help='''The new password. If not provided, you will be prompted for a hidden password.''')
-        sp.set_defaults(func=self.cmd_config_set_traefik_password)
+        sp.set_defaults(func=self.cmd_config_set_traefik_password, subparser=sp)
 
         # ======================= config check-traefik-password
 
@@ -434,7 +443,7 @@ class CommandHandler:
                             help='''The username to use for logging into the Traefik dashboard. Default: the username configured in traeffik_dashboard_htpasswd''')
         sp.add_argument('password', default=None, nargs='?',
                             help='''The password to check. If not provided, you will be prompted for a hidden password.''')
-        sp.set_defaults(func=self.cmd_config_check_traefik_password)
+        sp.set_defaults(func=self.cmd_config_check_traefik_password, subparser=sp)
 
         # ======================= config set-portainer-secret
 
@@ -442,13 +451,13 @@ class CommandHandler:
                                 description='''Set the value of property portainer_agent_secret in config.yml to a given secret passphrase.''')
         sp.add_argument('secret', default=None, nargs='?',
                             help='''The new secret passphrase. If not provided, a random 64-character hex string will be used.''')
-        sp.set_defaults(func=self.cmd_config_set_portainer_secret)
+        sp.set_defaults(func=self.cmd_config_set_portainer_secret, subparser=sp)
 
         # ======================= config schema
 
         sp = config_subparsers.add_parser('schema',
                                 description='''Display the configuration schema in JSON.''')
-        sp.set_defaults(func=self.cmd_config_schema)
+        sp.set_defaults(func=self.cmd_config_schema, subparser=sp)
 
         # ======================= install-prereqs
 
@@ -456,14 +465,34 @@ class CommandHandler:
                                 description='''Install system prerequisites for launching the hub.''')
         sp.add_argument("--force", "-f", action="store_true",
                             help="Force clean installation of prerequisites")
-        sp.set_defaults(func=self.cmd_install_prereqs)
+        sp.set_defaults(func=self.cmd_install_prereqs, subparser=sp)
 
+
+        # ======================= traefik
+
+        sp = subparsers.add_parser('traefik',
+                                description='''Manage the Traefik reverse-proxy and its stack.''')
+        sp.set_defaults(func=self.cmd_traefik_bare, subparser=sp)
+        traefik_subparsers = sp.add_subparsers(
+                            title='Subcommands',
+                            description='Valid subcommands',
+                            help=f'Additional help available with "{PROGNAME} traefik <subcommand-name> -h"')
+
+        # ======================= portainer
+
+        sp = subparsers.add_parser('portainer',
+                                description='''Manage Portainer and its stack.''')
+        sp.set_defaults(func=self.cmd_portainer_bare, subparser=sp)
+        portainer_subparsers = sp.add_subparsers(
+                            title='Subcommands',
+                            description='Valid subcommands',
+                            help=f'Additional help available with "{PROGNAME} portainer <subcommand-name> -h"')
 
         # ======================= version
 
         sp = subparsers.add_parser('version',
                                 description='''Display version information.''')
-        sp.set_defaults(func=self.cmd_version)
+        sp.set_defaults(func=self.cmd_version, subparser=sp)
 
         # =========================================================
 
