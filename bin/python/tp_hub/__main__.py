@@ -39,6 +39,7 @@ from tp_hub import (
     get_project_dir,
     logger,
     HubSettings,
+    init_current_hub_settings,
     get_config_yml_property,
     set_config_yml_property,
     hash_username_password,
@@ -84,7 +85,7 @@ class CommandHandler:
     def get_settings(self) -> HubSettings:
         if self._hub_settings is None:
             params = {} if self._hub_settings_params is None else self._hub_settings_params
-            self._hub_settings = HubSettings(**params)
+            self._hub_settings = init_current_hub_settings(**params)
         return self._hub_settings
     
     def get_settings_schema(self) -> JsonableDict:
@@ -120,10 +121,6 @@ class CommandHandler:
         return 0
 
     def cmd_config_bare(self) -> int:
-        # import pprint
-        # settings = self.get_settings()
-        # pp = pprint.PrettyPrinter(depth=2)
-        # pp.pprint(settings.model_dump())
         jsonable = json.loads(self.get_settings().model_dump_json())
         print(json.dumps(jsonable, indent=2, sort_keys=True))
         return 0
@@ -220,23 +217,25 @@ class CommandHandler:
         is_dict = False
         has_default = "default" in property
         default_value = property["default"] if has_default else None
-        is_dict = isinstance(default_value, dict)
         nullable = False
+        allowed_types: Set[str] = set()
+        if "type" in property:
+            allowed_types.add(property["type"])
+        if "anyOf" in property:
+            allowed_types.update(x["type"] for x in property["anyOf"])
+        nullable = 'null' in allowed_types
+        if nullable:
+            allowed_types.remove('null')
+        is_dict = isinstance(default_value, dict) or 'object' in allowed_types
         if is_dict:
             if len(property_name_parts) != 2:
                 raise ValueError(f"Property name {property_name} is a dict; cannot be set directly")
+            if default_value is None:
+                default_value = {}
             property_converter = str
         else:
             if len(property_name_parts) != 1:
                 raise ValueError(f"Property name {property_name} is not a dict; cannot be dotted")
-            allowed_types: Set[str] = set()
-            if "type" in property:
-                allowed_types.add(property["type"])
-            if "anyOf" in property:
-                allowed_types.update(x["type"] for x in property["anyOf"])
-            nullable = 'null' in allowed_types
-            if nullable:
-                allowed_types.remove('null')
             if len(allowed_types) == 0:
                 raise ValueError(f"Property name {property_name} must be null; cannot be set")
             if len(allowed_types) > 1:
@@ -266,7 +265,17 @@ class CommandHandler:
         print(json.dumps(schema, indent=2, sort_keys=True))
         return 0
 
-    def cmd_create_dns_name(self) -> int:
+    def cmd_cloud_bare(self) -> int:
+        print("Error: A command is required\n", file=sys.stderr)
+        self._args.subparser.print_help(sys.stderr)
+        return 1
+
+    def cmd_cloud_dns_bare(self) -> int:
+        print("Error: A command is required\n", file=sys.stderr)
+        self._args.subparser.print_help(sys.stderr)
+        return 1
+
+    def cmd_cloud_dns_create_name(self) -> int:
         dns_name: str = self._args.dns_name
         dns_target: Optional[str] = self._args.dns_target
         if dns_target is None:
@@ -275,6 +284,7 @@ class CommandHandler:
         if not '.' in dns_name:
             dns_name = f"{dns_name}.{self.get_config().parent_dns_domain}"
 
+        # TODO: Support other DNS providers
         create_route53_dns_name(get_aws(), dns_name, dns_target, verify_public_ip=False)
         return 0
     
@@ -370,18 +380,38 @@ class CommandHandler:
                             description='Valid commands',
                             help=f'Additional help available with "{PROGNAME} <command-name> -h"')
 
-        # ======================= create-dns-name
-        sp = subparsers.add_parser('create-dns-name',
-                            help='''Use AWS Route53 to create a new DNS name.''')
+        # ======================= cloud
+
+        sp = subparsers.add_parser('cloud',
+                                description='''Manage DNS and other cloud services.''')
+        sp.set_defaults(func=self.cmd_cloud_bare)
+        cloud_subparsers = sp.add_subparsers(
+                            title='Subcommands',
+                            description='Valid subcommands',
+                            help=f'Additional help available with "{PROGNAME} cloud <subcommand-name> -h"')
+
+        # ======================= cloud dns
+
+        sp = cloud_subparsers.add_parser('dns',
+                                description='''Manage DNS via Route53 or other cloud services.''')
+        sp.set_defaults(func=self.cmd_cloud_dns_bare)
+        cloud_dns_subparsers = sp.add_subparsers(
+                            title='Subcommands',
+                            description='Valid subcommands',
+                            help=f'Additional help available with "{PROGNAME} cloud dns <subcommand-name> -h"')
+
+        # ======================= cloud dns create-name
+        sp = cloud_dns_subparsers.add_parser('create-name',
+                            help='''Use AWS Route53 or other cloud service to create a new CNAME or A record.''')
         sp.add_argument('--target,', '-t', dest='dns_target',
                             help='''The resolved target value for a 'CNAME' or 'A' DNS record to create. '''
                                  '''If a valid IPV4 address, an 'A' record will be created. Otherwise, '''
-                                 '''a 'CNAME' record is created.  If a simple subdomain, f"{value}.{new_dns_name_parent}" '''
+                                 '''a 'CNAME' record is created.  If a simple subdomain, f"{value}.{config.parent_dns_domain}" '''
                                  '''will be used. By default, config.stable_public_dns_name is used.''')
         sp.add_argument('dns_name',
                             help='''The DNS name to create. If a simple subdomain, '''
-                                 '''f"{value}.{config.parent_dns_name}" will be used''')
-        sp.set_defaults(func=self.cmd_create_dns_name, subparser=sp)
+                                 '''f"{value}.{config.parent_dns_domain}" will be used''')
+        sp.set_defaults(func=self.cmd_cloud_dns_create_name, subparser=sp)
 
         # ======================= config
 
@@ -519,9 +549,11 @@ class CommandHandler:
             else:
                 rc = 1
             ex_desc = str(ex)
+            ex_classname = ex.__class__.__name__
             if len(ex_desc) == 0:
-                ex_desc = ex.__class__.__name__
-            print(f"{PROGNAME}: error: {ex_desc}", file=sys.stderr)
+                print(f"{PROGNAME}: error: {ex_classname}", file=sys.stderr)
+            else:
+                print(f"{PROGNAME}: error ({ex_classname}): {ex_desc}", file=sys.stderr)
             if traceback:
                 raise
         except BaseException as ex:

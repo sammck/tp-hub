@@ -15,10 +15,12 @@ from project_init_tools import atomic_mv
 import yaml
 from copy import deepcopy
 from threading import Lock
+from io import StringIO
 
 from .impl import HubSettings
 from .config_yaml_generator import generate_settings_yaml
 from ..util import unindent_string_literal as usl, unindent_text
+from ..pkg_logging import logger
 
 from ..internal_types import *
 from ..version import __version__ as pkg_version
@@ -51,7 +53,11 @@ def get_config_yml() -> JsonableDict:
                     data: JsonableDict = yaml.safe_load(fd)
                 assert isinstance(data, dict)
             else:
-                data = {}
+                logger.debug("get_config_yml: Generating default config.yml")
+                content = generate_settings_yaml()
+                _write_config_yml_content_no_lock(content)
+                data = yaml.safe_load(content)
+                assert isinstance(data, dict)
             _config_yml = data
         result = _config_yml
 
@@ -66,7 +72,9 @@ def get_roundtrip_config_yml() -> YAMLContainer:
                 with open(get_config_yml_pathname(), 'r', encoding="utf-8") as fd:
                     content = fd.read()
             else:
+                logger.debug("get_roundtrip_config_yml: Generating default config.yml")
                 content = generate_settings_yaml()
+                _write_config_yml_content_no_lock(content)
             data: YAMLContainer = YAML().load(content)
             assert isinstance(data, YAMLContainer)
             _roundtrip_config_yml = data
@@ -75,28 +83,43 @@ def get_roundtrip_config_yml() -> YAMLContainer:
 
 _null_representer = lambda dumper, data: dumper.represent_scalar('tag:yaml.org,2002:null', 'null')
 
-def save_roundtrip_config_yml(data: YAMLContainer) -> None:
+def _ryaml_dumps(ryaml: YAML, data: Any, **options) -> str:
+    ss = StringIO()
+    try:
+        ryaml.dump(data, ss, **options)
+        return ss.getvalue()
+    finally:
+        ss.close()
+
+def _write_config_yml_content_no_lock(content: str) -> None:
     pathname = get_config_yml_pathname()
     tmp_pathname = pathname + '.tmp'
-    ryaml = YAML()
-    ryaml.representer.add_representer(type(None), _null_representer)
-    with _cache_lock:
+    if os.path.exists(tmp_pathname):
+        os.unlink(tmp_pathname)
+    try:
+        # Create with only this user having access, since secrets may be contained
+        with open(
+                os.open(tmp_pathname, os.O_CREAT | os.O_WRONLY, 0o600),
+                'w',
+                encoding='utf-8',
+              ) as fd:
+            fd.write(content)
+        _clear_config_yml_cache_no_lock()
+        atomic_mv(tmp_pathname, pathname)
+    finally:
         if os.path.exists(tmp_pathname):
             os.unlink(tmp_pathname)
-        try:
-            # Create with only this user having access, since secrets may be contained
-            with open(
-                    os.open(tmp_pathname, os.O_CREAT | os.O_WRONLY, 0o600),
-                    'w',
-                    encoding='utf-8',
-                  ) as fd:
-                ryaml.dump(data, fd)
-            _clear_config_yml_cache_no_lock()
-            atomic_mv(tmp_pathname, pathname)
 
-        finally:
-            if os.path.exists(tmp_pathname):
-                os.unlink(tmp_pathname)
+def write_config_yml_content(content: str) -> None:
+    with _cache_lock:
+        _write_config_yml_content_no_lock(content)
+    
+    
+def save_roundtrip_config_yml(data: YAMLContainer) -> None:
+    ryaml = YAML()
+    ryaml.representer.add_representer(type(None), _null_representer)
+    content = _ryaml_dumps(ryaml, data)
+    write_config_yml_content(content)
 
 def get_config_yml_property(name: str) -> Jsonable:
     names = name.split('.')
@@ -110,7 +133,7 @@ def set_config_yml_property(name: str, value: Jsonable) -> None:
     root = get_roundtrip_config_yml()
     data = root
     for name in names[:-1]:
-        if name not in data:
+        if name not in data or data[name] is None:
             data[name] = {}
         data = data[name]
     data[names[-1]] = value

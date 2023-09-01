@@ -11,7 +11,14 @@ from .internal_types import *
 from .pkg_logging import logger
 
 from .config import (
+    HubConfigError,
     HubSettings,
+    hub_settings,
+    clear_hub_settings_cache,
+    current_hub_settings,
+    set_current_hub_settings,
+    init_current_hub_settings,
+    clear_current_hub_settings,
     clear_config_yml_cache,
     get_config_yml_pathname,
     get_config_yml,
@@ -64,6 +71,9 @@ from .util import (
     raw_resolve_public_dns,
     unindent_text,
     unindent_string_literal,
+    is_valid_ipv4_address,
+    is_valid_dns_name_or_ipv4_address,
+    is_valid_email_address,
   )
 
 from .password_hash import hash_username_password, check_username_password

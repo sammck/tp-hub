@@ -431,3 +431,65 @@ def unindent_string_literal(
         strip_trailing_whitespace=strip_trailing_whitespace,
         disregard_first_line=disregard_first_line,
       )
+
+# A DNS name part can be 1 to 63 characters long, and can contain only letters, digits, and hyphens.
+# It must not start or end with a hyphen.
+_valid_dns_name_part_re = re.compile("^(?!-)[a-zA-Z\d-]{1,63}(?<!-)$")
+def is_valid_dns_name(dns_name: str) -> bool:
+    """
+    Check if a string is a valid DNS name. The name does not need to exist.
+    """
+    dns_name = dns_name.lower()
+    if not (3 <= len(dns_name) <= 255):
+        # Maximum total length of a dns name is 255.
+        return False
+    if dns_name[-1] == ".":
+        # Fully qualified DNS names may end in '.' to indicate they are fully
+        # qualified. Strip the trailing '.' before validating.
+        dns_name = dns_name[:-1]
+    parts = dns_name.split(".")
+    if len(parts) < 2:
+        # A DNS name must have at least two parts, since the TLD is never used
+        # alone.
+        return False
+    if not all(_valid_dns_name_part_re.match(x) for x in parts):
+        # Each part must be 1-63 characters long, contain only letters, digits, and hyphens,
+        # and must not start or end with a hyphen.
+        return False
+    # The last part must be a TLD, which is never numeric. This test excludes IPV4
+    # addresses from being considered valid DNS names.
+    if all(x.isdigit() for x in parts[-1]):
+        return False
+    return True
+
+_valid_ipv4_re = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+def is_valid_ipv4_address(name: str) -> bool:
+    """
+    Check if a string is a valid IPV4 address. The address does not need to exist.
+    """
+    if not _valid_ipv4_re.match(name):
+        return False
+    if not all(0 <= int(x) <= 255 for x in name.split(".")):
+        return False
+    return True
+
+def is_valid_dns_name_or_ipv4_address(name: str) -> bool:
+    """
+    Check if a string is a valid DNS name or IPV4 address. The name/address does not need to exist.
+    """
+    return is_valid_ipv4_address(name) or is_valid_dns_name(name)
+
+
+_valid_email_username_re = re.compile(r"([-!#-'*+/-9=?A-Z^-~]+(\.[-!#-'*+/-9=?A-Z^-~]+)*|\"([]!#-[^-~ \t]|(\\[\t -~]))+\")")
+def is_valid_email_address(name: str) -> bool:
+    """
+    Check if a string is a valid email address. The address does not need to exist.
+    """
+    parts = name.rsplit("@", 1)
+    if len(parts) != 2:
+        return False
+    if not is_valid_dns_name(parts[1]):
+        return False
+    if not _valid_email_username_re.match(parts[0]):
+        return False
+    return True

@@ -8,7 +8,17 @@
 Config file support
 """
 
-from .impl import HubSettings
+from .impl import (
+    HubConfigError,
+    HubSettings,
+    hub_settings,
+    clear_hub_settings_cache,
+    current_hub_settings,
+    set_current_hub_settings,
+    init_current_hub_settings,
+    clear_current_hub_settings,
+  )
+
 from .config_yaml_generator import generate_settings_yaml
 from .config_yml import (
     clear_config_yml_cache,

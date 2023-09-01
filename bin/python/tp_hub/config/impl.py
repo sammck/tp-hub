@@ -12,13 +12,13 @@ import sys
 import yaml
 import os
 from copy import deepcopy
+from functools import cache
+from threading import Lock
 
 from pydantic import (
-    # AliasChoices,
-    # AmqpDsn,
     BaseModel,
     Field,
-    # ImportString,
+    validator,
 )
 
 from pydantic.fields import FieldInfo
@@ -29,110 +29,21 @@ from pydantic_settings import (
     PydanticBaseSettingsSource,
   )
 
-from ..internal_types import *
 from ..proj_dirs import get_project_dir
-from ..util import unindent_string_literal as usl
+from ..util import (
+    unindent_string_literal as usl,
+    is_valid_email_address,
+    is_valid_dns_name,
+  )
 from ..version import __version__ as pkg_version
+from .yaml_config_settings_source import YAMLConfigSettingsSource
+from ..pkg_logging import logger
 
-class YAMLConfigSettingsSource(PydanticBaseSettingsSource):
-    """
-    A settings source class that loads variables from a config.yml file
-    """
+from ..internal_types import *
 
-    config_file: str
-    cached_jsonable: Optional[JsonableDict] = None
-
-    def __init__(
-            self,
-            settings_cls: type[BaseSettings],
-            config_file: str = 'config.yml'
-          ):
-        self.config_file = config_file
-        super().__init__(settings_cls)
-
-    def get_jsonable(self) -> JsonableDict:
-        if self.cached_jsonable is None:
-            project_dir = get_project_dir()
-            file_path = os.path.join(project_dir, self.config_file)
-            if os.path.exists(file_path):
-                encoding = self.config.get('env_file_encoding')
-                with open(file_path, 'r', encoding=encoding) as f:
-                    parent_jsonable = yaml.safe_load(f)
-                    if not isinstance(parent_jsonable, dict):
-                        raise TypeError(
-                            f"YAML config file {file_path} must contain a dictionary"
-                        )
-                    if 'hub' in parent_jsonable and isinstance(parent_jsonable['hub'], dict):
-                        self.cached_jsonable = parent_jsonable['hub']
-                    else:
-                        print(f"WARNING: YAML config file {file_path} does not contain a 'hub' section", file=sys.stderr)
-                        self.cached_jsonable = {}
-            else:
-                self.cached_jsonable = {}
-        return self.cached_jsonable
-
-    # @override
-    def get_field_value(
-            self,
-            field: FieldInfo,
-            field_name: str
-          ) -> Tuple[Any, str, bool]:
-        """
-        Gets the value, the key for model creation, and a flag to determine whether value is complex.
-
-        This is an abstract method that should be overridden in every settings source classes.
-
-        Args:
-            field: The field.
-            field_name: The field name.
-
-        Returns:
-            A tuple contains the key, value and a flag to determine whether value is complex.
-        """
-        jsonable = self.get_jsonable()
-        field_value = jsonable.get(field_name)
-        return field_value, field_name, False
-
-    # @override
-    def prepare_field_value(
-            self,
-            field_name: str,
-            field: FieldInfo,
-            value: Any,
-            value_is_complex: bool
-          ) -> Any:
-        """
-        Prepares the value of a field.
-
-        Args:
-            field_name: The field name.
-            field: The field.
-            value: The value of the field that has to be prepared.
-            value_is_complex: A flag to determine whether value is complex.
-
-        Returns:
-            The prepared value.
-        """
-        return value
-
-    def __call__(self) -> Dict[str, Any]:
-        """Return a deep dictionary of settings initializer values from this source"""
-
-        d: Dict[str, Any] = deepcopy(self.get_jsonable())
-
-        #d: Dict[str, Any] = {}
-        # for field_name, field in self.settings_cls.model_fields.items():
-        #     field_value, field_key, value_is_complex = self.get_field_value(
-        #         field, field_name
-        #     )
-        #     field_value = self.prepare_field_value(
-        #         field_name, field, field_value, value_is_complex
-        #     )
-        #     if field_value is not None:
-        #         d[field_key] = field_value
-
-        return d
-
+class HubConfigError(HubError):
+    """An error related to hub configuration"""
+    pass
 
 class EnvVarsModel(BaseModel):
     """A model for a collection of environment variable key/value pairsthat can be passed to
@@ -202,7 +113,38 @@ class HubSettings(BaseSettings):
     """The Hub package version for which the configuration was authored.
        If not provided, the current package version is used."""
 
-    parent_dns_domain: str = Field(description=usl(
+    allowed_cert_resolvers: Set[str] = Field(default=None, description=usl(
+        """A set of allowed certificate resolver names. May be provided as a list/set or a comma-delimited
+           string. The default is ['prod', 'staging'].
+           You should not need to override this unless you are using a custom certificate resolver.
+        """
+      ))
+    """A list of allowed certificate resolver names. May be provided as a list or a comma-delimited
+       string. The default is ['prod', 'staging'].
+       You should not need to override this unless you are using a custom certificate resolver."""
+
+    @validator('allowed_cert_resolvers', pre=True, always=True)
+    def allowed_cert_resolvers_validator(cls, v, values, **kwargs):
+        sname = 'allowed_cert_resolvers'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        r = v
+        if r is None:
+            r = ['prod', 'staging']
+        if isinstance(r, str):
+            if r == '':
+                r = []
+            else:
+                r = r.split(',')
+        if not isinstance(r, Iterable):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a comma-delimited string or iterable; edit config.yml")
+        r = set(x for x in r)
+        for resolver in r:
+            if not isinstance(resolver, str) or len(resolver) == 0 or "." in resolver:
+                raise HubConfigError(f"Setting {sname}={v!r} must be a valid list or comma-delimited list of simple identifiers; edit config.yml")
+        return r
+        
+
+    parent_dns_domain: str = Field(default=None, description=usl(
         """The registered public DNS domain under which subdomains are created
         as needed for added web services. You must be able to create DNS
         record sets in this domain. If hosted on AWS Route53, tools are
@@ -217,7 +159,17 @@ class HubSettings(BaseSettings):
     Traefik and Portainer PARENT_DNS_DOMAIN stack variable.
     REQUIRED."""
 
-    admin_parent_dns_domain: Optional[str] = Field(default=None, description=usl(
+    @validator('parent_dns_domain', pre=True, always=True)
+    def parent_dns_domain_validator(cls, v, values, **kwargs):
+        sname = 'parent_dns_domain'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            raise HubConfigError(f"Setting {sname} is required; edit config.yml")
+        if not is_valid_dns_name(v):
+            raise HubConfigError(f"Setting '{sname}'={v!r} must be a valid DNS name; edit config.yml")
+        return v
+        
+    admin_parent_dns_domain: str = Field(default=None, description=usl(
         """The registered public DNS domain under which the "traefik."
         and "portainer." subdomains are created to access the Traefik
         and Portainer web interfaces. You must be able to create DNS
@@ -232,7 +184,17 @@ class HubSettings(BaseSettings):
     provided to automate this. By default, the value of
     parent_dns_domain is used."""
 
-    letsencrypt_owner_email: Optional[str] = Field(default=None, description=usl(
+    @validator('admin_parent_dns_domain', pre=True, always=True)
+    def admin_parent_dns_domain_validator(cls, v, values, **kwargs):
+        sname = 'admin_parent_dns_domain'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = values['parent_dns_domain']
+        if not is_valid_dns_name(v):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name; edit config.yml")
+        return v
+        
+    letsencrypt_owner_email: str = Field(default=None, description=usl(
         """The default email address to use for Let's Encrypt registration  to produce
         SSL certificates. If not provided, and this project is a git clone of the
         rpi-hub project, the value from git config user.email is used. Otherwise, REQUIRED."""
@@ -241,7 +203,17 @@ class HubSettings(BaseSettings):
     SSL certificates. If not provided, and this project is a git clone of the
     rpi-hub project, the value from git config user.email is used. Otherwise, REQUIRED."""
 
-    letsencrypt_owner_email_prod: Optional[str] = Field(default=None, description=usl(
+    @validator('letsencrypt_owner_email', pre=True, always=True)
+    def letsencrypt_owner_email_validator(cls, v, values, **kwargs):
+        sname = 'letsencrypt_owner_email'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            raise HubConfigError(f"Setting {sname} is required; edit config.yml")
+        if not is_valid_email_address(v):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a valid email address; edit config.yml")
+        return v
+
+    letsencrypt_owner_email_prod: str = Field(default=None, description=usl(
         """The email address to use for Let's Encrypt registration in the "prod"
         name resolver, which produces genuine valid certificates. If not provided,
         the value from letsencrypt_owner_email is used."""
@@ -250,7 +222,17 @@ class HubSettings(BaseSettings):
     name resolver, which produces genuine valid certificates. If not provided,
     the value from letsencrypt_owner_email is used."""
 
-    letsencrypt_owner_email_staging: Optional[str] = Field(default=None, description=usl(
+    @validator('letsencrypt_owner_email_prod', pre=True, always=True)
+    def letsencrypt_owner_email_prod_validator(cls, v, values, **kwargs):
+        sname = 'letsencrypt_owner_email_prod'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = values['letsencrypt_owner_email']
+        if not is_valid_email_address(v):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a valid email address; edit config.yml")
+        return v
+
+    letsencrypt_owner_email_staging: str = Field(default=None, description=usl(
         """The email address to use for Let's Encrypt registration in the "staging"
         name resolver, which produces untrusted certificates for testing purposes.
         Using the staging resolver avoids hitting rate limits on the prod resolver.
@@ -261,7 +243,17 @@ class HubSettings(BaseSettings):
     Using the staging resolver avoids hitting rate limits on the prod resolver.
     If not provided, the value from letsencrypt_owner_email is used."""
 
-    default_cert_resolver: str = Field(default="staging", description=usl(
+    @validator('letsencrypt_owner_email_staging', pre=True, always=True)
+    def letsencrypt_owner_email_staging_validator(cls, v, values, **kwargs):
+        sname = 'letsencrypt_owner_email_staging'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = values['letsencrypt_owner_email']
+        if not is_valid_email_address(v):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a valid email address; edit config.yml")
+        return v
+
+    default_cert_resolver: str = Field(default=None, description=usl(
         """The default name of the Traefik certificate resolver to use for HTTPS/TLS
         routes. Generally, this should be "prod" for production use (real certs),
         and "staging" for testing purposes (untrusted certs).
@@ -272,7 +264,17 @@ class HubSettings(BaseSettings):
     and "staging" for testing purposes (untrusted certs).
     If not provided, "staging" is used."""
 
-    admin_cert_resolver: str = Field(default="prod", description=usl(
+    @validator('default_cert_resolver', pre=True, always=True)
+    def default_cert_resolver_validator(cls, v, values, **kwargs):
+        sname = 'default_cert_resolver'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = "staging"
+        if not v in values['allowed_cert_resolvers']:
+            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
+        return v
+
+    admin_cert_resolver: str = Field(default=None, description=usl(
         """The default name of the Traefik certificate resolver to use for HTTPS/TLS
         routes for the Traefik dashboard and Portainer web interface. By default,
         "prod" is used."""
@@ -281,21 +283,51 @@ class HubSettings(BaseSettings):
     routes for the Traefik dashboard and Portainer web interface. By default,
     "prod" is used."""
 
-    traefik_dashboard_cert_resolver: Optional[str] = Field(default=None, description=usl(
+    @validator('admin_cert_resolver', pre=True, always=True)
+    def admin_cert_resolver_validator(cls, v, values, **kwargs):
+        sname = 'admin_cert_resolver'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = "prod"
+        if not v in values['allowed_cert_resolvers']:
+            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
+        return v
+
+    traefik_dashboard_cert_resolver: str = Field(default=None, description=usl(
         """The name of the Traefik certificate resolver to use for the Traefik dashboard.
         By default, the value of admin_cert_resolver is used."""
       ))
     """The name of the Traefik certificate resolver to use for the Traefik dashboard.
     By default, the value of admin_cert_resolver is used."""
 
-    portainer_cert_resolver: Optional[str] = Field(default=None, description=usl(
+    @validator('traefik_dashboard_cert_resolver', pre=True, always=True)
+    def traefik_dashboard_cert_resolver_validator(cls, v, values, **kwargs):
+        sname = 'traefik_dashboard_cert_resolver'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = values['admin_cert_resolver']
+        if not v in values['allowed_cert_resolvers']:
+            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
+        return v
+
+    portainer_cert_resolver: str = Field(default=None, description=usl(
         """The name of the Traefik certificate resolver to use for the Portainer web interface.
         By default, the value of admin_cert_resolver is used."""
       ))
     """The name of the Traefik certificate resolver to use for the Portainer web interface.
     By default, the value of admin_cert_resolver is used."""
 
-    portainer_agent_secret: str = Field(description=usl(
+    @validator('portainer_cert_resolver', pre=True, always=True)
+    def portainer_cert_resolver_validator(cls, v, values, **kwargs):
+        sname = 'portainer_cert_resolver'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = values['admin_cert_resolver']
+        if not v in values['allowed_cert_resolvers']:
+            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
+        return v
+
+    portainer_agent_secret: str = Field(default=None, description=usl(
         """A random string used to secure communication between Portainer and the Portainer
         agent. Typically 32 hex digits.
         REQUIRED (generated and installed in user config by provisioning tools)."""
@@ -304,7 +336,17 @@ class HubSettings(BaseSettings):
     agent. Typically 32 hex digits.
     REQUIRED (generated and installed in user config by provisioning tools)."""
 
-    traefik_dashboard_htpasswd: str = Field(description=usl(
+    @validator('portainer_agent_secret', pre=True, always=True)
+    def portainer_agent_secret_validator(cls, v, values, **kwargs):
+        sname = 'portainer_agent_secret'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            raise HubConfigError(f"Setting {sname} is required; use 'hub config set-portainer-secret' to set it to a random value")
+        if not isinstance(v, str) or len(v) < 16:
+            raise HubConfigError(f"Setting '{sname}'={v!r} must be a secret string >= 16 characters long; use 'hub config set-portainer-secret' to set it to a random value")
+        return v
+
+    traefik_dashboard_htpasswd: str = Field(default=None, description=usl(
         """The admin username and bcrypt-hashed password to use for HTTP Basic authhentication on
         the Traefik dashboard. The value of this string is of the form "username:hashed_password",
         and can be generated using the `htpasswd -nB admin` or tools included in this project.
@@ -327,7 +369,20 @@ class HubSettings(BaseSettings):
     Example: 'admin:$2y$05$LCmVF2WJY/Ue0avRDcsDmelPqzXQcMIXoRxHF3bR62HuIP.fqqqZm'
     REQUIRED (generated and installed in user config by provisioning tools)."""
 
-    stable_public_dns_name: Optional[str] = Field(default=None, description=usl(
+    @validator('traefik_dashboard_htpasswd', pre=True, always=True)
+    def traefik_dashboard_htpasswd_validator(cls, v, values, **kwargs):
+        sname = 'traefik_dashboard_htpasswd'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            raise HubConfigError(f"Setting {sname} is required; generate a username/password hash and set it with 'hub config set-traefik-password'")
+        if not isinstance(v, str):
+            raise HubConfigError(f"Setting '{sname}'={v!r} must be a string; generate a username/password hash and set it with 'hub config set-traefik-password'")
+        parts = v.split(':', 1)
+        if len(parts) != 2 or len(parts[0]) == 0 or len(parts[1]) < 20 or not parts[1].startswith('$2'):
+            raise HubConfigError(f"Setting '{sname}'={v!r} must be a string of the form '<username>:<bcrypt-hashed-password>'; generate a username/password hash and set it with 'hub config set-traefik-password'")
+        return v
+
+    stable_public_dns_name: str = Field(default=None, description=usl(
         """A permanent DNS name (e.g., ddns.mydnsname.com) that has been configured to always
         resolve to the current public IP address of your network's gateway router. Since typical
         residential ISPs may change your public IP address periodically, it is usually necessary to
@@ -364,66 +419,159 @@ class HubSettings(BaseSettings):
     automatically prepended to the value of admin_parent_dns_domain to form the full DNS name.
     The default value is "ddns"."""
 
-    traefik_dashboard_subdomain: str = Field(default="traefik", description=usl(
-        """The subdomain under admin_parent_dns_domain to use for the Traefik dashboard. The default value is "traefik"."""
-      ))
-    """The subdomain under admin_parent_dns_domain to use for the Traefik dashboard. The default value is "traefik"."""
+    @validator('stable_public_dns_name', pre=True, always=True)
+    def stable_public_dns_name_validator(cls, v, values, **kwargs):
+        sname = 'stable_public_dns_name'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = 'ddns'
+        if '.' not in v:
+            v = f"{v}.{values['admin_parent_dns_domain']}"
+        if not is_valid_dns_name(v):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name or simple subdomain; edit config.yml")
+        return v
 
-    portainer_subdomain: str = Field(default="portainer", description=usl(
-        """The subdomain under admin_parent_dns_domain to use for the Portainer web interface. The default value is "portainer"."""
+    traefik_dashboard_dns_name: str = Field(default=None, description=usl(
+        """The DNS name that is used for the traefik dashboard. If this is a simple subdomain with no dots, it will
+          be prepended to the value of admin_parent_dns_domain to form the full DNS name. The default value is "traefik"."""
       ))
-    """The subdomain under admin_parent_dns_domain to use for the Portainer web interface. The default value is "portainer"."""
+    """The DNS name that is used for the traefik dashboard. If this is a simple subdomain with no dots, it will
+       be prepended to the value of admin_parent_dns_domain to form the full DNS name. The default value is "traefik"."""
 
-    default_app_subdomain: str = Field(default="hub", description=usl(
-        """A subdomain under parent_dns_domain to use for general-purpose path-routed web services created by Portainer.
-        this allows multiple simple services to share a single provisioned DNS name and certificate
-        if they can be routed with a traefik Path or PathPrefix rule. The default value is "rpi-hub"."""
+    @validator('traefik_dashboard_dns_name', pre=True, always=True)
+    def traefik_dashboard_dns_name_validator(cls, v, values, **kwargs):
+        sname = 'stable_traefik_dashboard_dns_name'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = 'traefik'
+        if '.' not in v:
+            v = f"{v}.{values['admin_parent_dns_domain']}"
+        if not is_valid_dns_name(v):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name or simple subdomain; edit config.yml")
+        return v
+
+    portainer_dns_name: str = Field(default=None, description=usl(
+        """The DNS name that is used for the Portainer web UI. If this is a simple subdomain with no dots, it will
+          be prepended to the value of admin_parent_dns_domain to form the full DNS name. The default value is "portainer"."""
       ))
-    """A subdomain under parent_dns_domain to use for general-purpose path-routed web services created by Portainer.
-    this allows multiple simple services to share a single provisioned DNS name and certificate
-    if they can be routed with a traefik Path or PathPrefix rule. The default value is "rpi-hub"."""
+    """The DNS name that is used for the Portainer web UI. If this is a simple subdomain with no dots, it will
+       be prepended to the value of admin_parent_dns_domain to form the full DNS name. The default value is "portainer"."""
 
-    app_subdomain_cert_resolver: Optional[str] = Field(default=None, description=usl(
+    @validator('portainer_dns_name', pre=True, always=True)
+    def portainer_dns_name_validator(cls, v, values, **kwargs):
+        sname = 'portainer_dns_name'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = 'portainer'
+        if '.' not in v:
+            v = f"{v}.{values['admin_parent_dns_domain']}"
+        if not is_valid_dns_name(v):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name or simple subdomain; edit config.yml")
+        return v
+
+    shared_app_dns_name: str = Field(default=None, description=usl(
+        """The DNS name to use for general-purpose path-routed web services created by Portainer.
+          this allows multiple simple services to share a single provisioned DNS name and certificate
+          if they can be routed with a traefik Path or PathPrefix rule. If this is a simple subdomain with no dots,
+          it will be prepended to the value of parent_dns_domain to form the full DNS name. The default value is "hub"."""
+      ))
+    """The DNS name to use for general-purpose path-routed web services created by Portainer.
+       this allows multiple simple services to share a single provisioned DNS name and certificate
+       if they can be routed with a traefik Path or PathPrefix rule. If this is a simple subdomain with no dots,
+       it will be prepended to the value of parent_dns_domain to form the full DNS name. The default value is "hub"."""
+
+    @validator('shared_app_dns_name', pre=True, always=True)
+    def shared_app_dns_name_validator(cls, v, values, **kwargs):
+        sname = 'shared_app_dns_name'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = 'hub'
+        if '.' not in v:
+            v = f"{v}.{values['parent_dns_domain']}"
+        if not is_valid_dns_name(v):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name or simple subdomain; edit config.yml")
+        return v
+
+    shared_app_cert_resolver: str = Field(default=None, description=usl(
         """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-        routes using the default app subdomain. Generally, this should be "prod"
-        once the default app subdomain route has been validated, or "staging"
-        for testing purposes (untrusted certs). If not provided, the value of
-        default_cert_resolver is used."""
+           routes using the shared app DNS name. Generally, this should be "prod"
+           once the shared app DNS route has been validated, or "staging"
+           for testing purposes (untrusted certs). If not provided, the value of
+           default_cert_resolver is used."""
       ))
     """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-    routes using the default app subdomain. Generally, this should be "prod"
-    once the default app subdomain route has been validated, or "staging"
-    for testing purposes (untrusted certs). If not provided, the value of
-    default_cert_resolver is used."""
+       routes using the shared app DNS name. Generally, this should be "prod"
+       once the shared app DNS route has been validated, or "staging"
+       for testing purposes (untrusted certs). If not provided, the value of
+       default_cert_resolver is used."""
 
-    base_stack_env: EnvVarsModel = Field(default=EnvVarsModel(), description=usl(
-      """Dictionary of environment variables that will be passed to all docker-compose stacks, including
-      the Traefik and Portainer stacks, and stacks created by Portainer. Note that
-      properties defined here will be installed directly into Portainer's runtime
-      environment, and thus will be implicitly available for expansion in all docker-compose
-      stacks started by Portainer."""
+    @validator('shared_app_cert_resolver', pre=True, always=True)
+    def shared_app_cert_resolver_validator(cls, v, values, **kwargs):
+        sname = 'shared_app_cert_resolver'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = values['default_cert_resolver']
+        if not v in values['allowed_cert_resolvers']:
+            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
+        return v
+
+    @classmethod    
+    def _validate_env_dict(cls, field_name: str, v, values, base_env: Optional[Dict[str, str]]=None, **kwargs) -> Dict[str, str]:
+        logger.debug(f"{field_name}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = {}
+        if not isinstance(v, dict):
+            raise HubConfigError(f"Setting {field_name}={v!r} must be a dictionary; edit config.yml")
+        if not base_env is None:
+            v = { **base_env, **v }
+        return v
+
+    base_stack_env: Dict[str, str] = Field(default=None, description=usl(
+        """Dictionary of environment variables that will be passed to all docker-compose stacks, including
+           the Traefik and Portainer stacks, and stacks created by Portainer. Note that
+           properties defined here will be installed directly into Portainer's runtime
+           environment, and thus will be implicitly available for expansion in all docker-compose
+           stacks started by Portainer."""
       ))
     """Dictionary of environment variables that will be passed to all docker-compose stacks, including
-    the Traefik and Portainer stacks, and stacks created by Portainer. Note that
-    properties defined here will be installed directly into Portainer's runtime
-    environment, and thus will be implicitly available for expansion in all docker-compose
-    stacks started by Portainer."""
+       the Traefik and Portainer stacks, and stacks created by Portainer. Note that
+       properties defined here will be installed directly into Portainer's runtime
+       environment, and thus will be implicitly available for expansion in all docker-compose
+       stacks started by Portainer."""
 
-    traefik_stack_env: EnvVarsModel = Field(default=EnvVarsModel(), description=usl(
+    @validator('base_stack_env', pre=True, always=True)
+    def base_stack_env_validator(cls, v, values, **kwargs):
+        sname = 'base_stack_env'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        return cls._validate_env_dict(sname, v, values, **kwargs)
+
+    traefik_stack_env: Dict[str, str] = Field(default=None, description=usl(
         """Dictionary of environment variables that will be passed to the Traefik docker-compose stack.
         Actual used dict is created from base_stack_env, with this dict overriding."""
       ))
     """Dictionary of environment variables that will be passed to the Traefik docker-compose stack.
     Actual used dict is created from base_stack_env, with this dict overriding."""
-    
-    portainer_stack_env: EnvVarsModel = Field(default=EnvVarsModel(), description=usl(
+
+    @validator('traefik_stack_env', pre=True, always=True)
+    def traefik_stack_env_validator(cls, v, values, **kwargs):
+        sname = 'traefic_stack_env'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        return cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+
+    portainer_stack_env: Dict[str, str] = Field(default=None, description=usl(
         """Dictionary of environment variables that will be passed to the Portainer docker-compose stack.
         Actual used dict is created from base_stack_env, with this dict overriding."""
       ))
     """Dictionary of environment variables that will be passed to the Portainer docker-compose stack.
     Actual used dict is created from base_stack_env, with this dict overriding."""
 
-    base_app_stack_env: EnvVarsModel = Field(default=EnvVarsModel(), description=usl(
+    @validator('portainer_stack_env', pre=True, always=True)
+    def portainer_stack_env_validator(cls, v, values, **kwargs):
+        sname = 'portainer_stack_env'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        return cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+
+    base_app_stack_env: Dict[str, str] = Field(default=None, description=usl(
         """Dictionary of environment variables that should be passed to all app stacks, including
         stacks created by Portainer. Note that properties defined here will be
         installed directly into Portainer's runtime environment, and thus will
@@ -436,15 +584,64 @@ class HubSettings(BaseSettings):
     be implicitly available for expansion in all docker-compose stacks started by Portainer.
     Actual used dict is created from base_stack_env, with this dict overriding."""
 
-    portainer_runtime_env: EnvVarsModel = Field(default=EnvVarsModel(), description=usl(
+    @validator('base_app_stack_env', pre=True, always=True)
+    def base_app_stack_env_validator(cls, v, values, **kwargs):
+        sname = 'base_app_stack_env'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        return cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+
+    portainer_runtime_env: Dict[str, str] = Field(default=None, description=usl(
         """Dictionary of environment variables that will be installed into Portainer's actual runtime
-        environment, and thus will be implicitly available for variable expansion in all
-        docker-compose stacks started by Portainer, as well as by any processes started
-        in the Portainer container.
-        Actual used dict is created from base_app_stack_env, with this dict overriding."""
+           environment, and thus will be implicitly available for variable expansion in all
+           docker-compose stacks started by Portainer, as well as by any processes started
+           in the Portainer container.
+           Actual used dict is created from base_app_stack_env, with this dict overriding."""
       ))
     """Dictionary of environment variables that will be installed into Portainer's actual runtime
-    environment, and thus will be implicitly available for variable expansion in all
-    docker-compose stacks started by Portainer, as well as by any processes started
-    in the Portainer container.
-    Actual used dict is created from base_app_stack_env, with this dict overriding."""
+       environment, and thus will be implicitly available for variable expansion in all
+       docker-compose stacks started by Portainer, as well as by any processes started
+       in the Portainer container.
+       Actual used dict is created from base_app_stack_env, with this dict overriding."""
+
+    @validator('portainer_runtime_env', pre=True, always=True)
+    def portainer_runtime_env_validator(cls, v, values, **kwargs):
+        sname = 'portainer_runtime_env'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        return cls._validate_env_dict(sname, v, values, base_env=values['base_app_stack_env'], **kwargs)
+
+@cache
+def hub_settings(**params) -> HubSettings:
+    return HubSettings(**params)
+
+def clear_hub_settings_cache() -> None:
+    hub_settings.cache_clear()
+
+_current_hub_settings: Optional[HubSettings] = None
+_current_hub_settings_lock: Lock = Lock()
+def current_hub_settings() -> HubSettings:
+    global _current_hub_settings
+
+    with _current_hub_settings_lock:
+        if _current_hub_settings is None:
+            _current_hub_settings = hub_settings()
+        return _current_hub_settings
+    
+def set_current_hub_settings(settings: HubSettings) -> HubSettings:
+    global _current_hub_settings
+
+    with _current_hub_settings_lock:
+        _current_hub_settings = settings
+        return _current_hub_settings
+
+def init_current_hub_settings(**params) -> HubSettings:
+    return set_current_hub_settings(hub_settings(**params))
+
+def clear_current_hub_settings() -> None:
+    global _current_hub_settings
+
+    with _current_hub_settings_lock:
+        _current_hub_settings = None
+
+    
+
+
