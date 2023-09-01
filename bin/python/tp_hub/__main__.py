@@ -158,8 +158,8 @@ class CommandHandler:
     def cmd_config_set_traefik_password(self) -> int:
         username = self._args.username
         password = self._args.password
-        first = True
         if password is None:
+            first = True
             for i in range(5):
                 if not first:
                     print("Passwords do not match; try again", file=sys.stderr)
@@ -172,6 +172,30 @@ class CommandHandler:
                 raise CmdExitError(1, "Too many attempts; password not reset")
         hashed = hash_username_password(username, password)
         set_config_yml_property(f"hub.traefik_dashboard_htpasswd", hashed)
+        return 0
+
+    def cmd_config_check_traefik_password(self) -> int:
+        hashed = get_config_yml_property(f"hub.traefik_dashboard_htpasswd")
+        if not ':' in hashed:
+            raise HubError(1, "Configured password hash is malformed")
+        cfg_username, _ = hashed.split(':', 1)
+        username = self._args.username
+        username_given = username is not None
+        if not username_given:
+            username = cfg_username
+        password = self._args.password
+        if password is None:
+            password = getpass.getpass(f"Enter password for user {username}: ")
+        if not check_username_password(hashed, username, password):
+            if username_given:
+                print(f"FAIL: The username and/or the password are incorrect!", file=sys.stderr)
+            else:
+                print(f"FAIL: The password is incorrect!", file=sys.stderr)
+            return 1
+        if username_given:
+            print(f"SUCCESS: The username and password are correct!", file=sys.stderr)
+        else:
+            print(f"SUCCESS: The password is correct!", file=sys.stderr)
         return 0
 
     def cmd_config_set_portainer_secret(self) -> int:
@@ -401,6 +425,16 @@ class CommandHandler:
         sp.add_argument('password', default=None, nargs='?',
                             help='''The new password. If not provided, you will be prompted for a hidden password.''')
         sp.set_defaults(func=self.cmd_config_set_traefik_password)
+
+        # ======================= config check-traefik-password
+
+        sp = config_subparsers.add_parser('check-traefik-password',
+                                description='''Checks that a given username/password matches the hash in traefik_dashboard_htpasswd in config.yml.''')
+        sp.add_argument('--user', '-u', type=str, dest='username', default=None,
+                            help='''The username to use for logging into the Traefik dashboard. Default: the username configured in traeffik_dashboard_htpasswd''')
+        sp.add_argument('password', default=None, nargs='?',
+                            help='''The password to check. If not provided, you will be prompted for a hidden password.''')
+        sp.set_defaults(func=self.cmd_config_check_traefik_password)
 
         # ======================= config set-portainer-secret
 
