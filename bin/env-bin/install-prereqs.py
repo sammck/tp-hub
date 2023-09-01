@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 
+#
+# Copyright (c) 2023 Samuel J. McKelvie
+#
+# MIT License - See LICENSE file accompanying this package.
+#
+
+"""
+Install system prerequisites for this project, after the virtualenv has been created.
+"""
+
+from __future__ import annotations
+
 import os
 import sys
 import dotenv

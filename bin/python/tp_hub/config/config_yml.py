@@ -29,6 +29,8 @@ _roundtrip_config_yml: Optional[YAMLContainer] = None
 _cache_lock = Lock()
 
 def _clear_config_yml_cache_no_lock() -> None:
+    global _config_yml
+    global _roundtrip_config_yml
     _config_yml = None
     _roundtrip_config_yml = None
 

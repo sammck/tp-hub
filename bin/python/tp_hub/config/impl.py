@@ -327,7 +327,7 @@ class HubSettings(BaseSettings):
     Example: 'admin:$2y$05$LCmVF2WJY/Ue0avRDcsDmelPqzXQcMIXoRxHF3bR62HuIP.fqqqZm'
     REQUIRED (generated and installed in user config by provisioning tools)."""
 
-    stable_public_dns_name: str = Field(default="ddns", description=usl(
+    stable_public_dns_name: Optional[str] = Field(default=None, description=usl(
         """A permanent DNS name (e.g., ddns.mydnsname.com) that has been configured to always
         resolve to the current public IP address of your network's gateway router. Since typical
         residential ISPs may change your public IP address periodically, it is usually necessary to
