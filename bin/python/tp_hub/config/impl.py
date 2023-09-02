@@ -666,6 +666,12 @@ class HubSettings(BaseSettings):
             v['PORTAINER_DNS_NAME'] = values['portainer_dns_name']
         if v.get('PORTAINER_AGENT_SECRET') is None:
             v['PORTAINER_AGENT_SECRET'] = values['portainer_agent_secret']
+        if v.get('PORTAINER_LOG_LEVEL') is None:
+            v['PORTAINER_LOG_LEVEL'] = "DEBUG"
+        v['PORTAINER_LOG_LEVEL'] = v['PORTAINER_LOG_LEVEL'].upper()
+        if v.get('PORTAINER_AGENT_LOG_LEVEL') is None:
+            v['PORTAINER_AGENT_LOG_LEVEL'] = "DEBUG"
+        v['PORTAINER_AGENT_LOG_LEVEL'] = v['PORTAINER_AGENT_LOG_LEVEL'].upper()
 
         if v.get('PORTAINER_INJECTED_ENVIRONMENT_VARS') is None:
             # Encode the portainer_runtime_env dict as a yaml string for expansion

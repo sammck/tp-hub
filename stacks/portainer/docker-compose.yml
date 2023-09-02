@@ -10,6 +10,12 @@ version: "3.3"
 #                            There must be a DNS entry for this name that resolves to this network's public IP address.}
 #    PORTAINER_AGENT_SECRET  A secret string that is shared between portainer and portainer_agent.  This is used to
 #                                 authenticate the agent to portainer and vice-versa.
+#    PORTAINER_INJECTED_ENVIRONMENT_VARS
+#                            A YAML-encoded property list, indented 6 spaces on all but the first line,
+#                            listing additional environment variable assignments to pass into the container
+#    PORTAINER_LOG_LEVEL     The log level for Portainer.  One of "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "PANIC"
+#    PORTAINER_AGENT_LOG_LEVEL
+#                            The log level for Portainer.  One of "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "PANIC"
 #
 # Entrypoints:
 #    This stack creates a Traefik reverse-proxy with 5 entrypoints:
@@ -64,7 +70,7 @@ services:
       # deployed inside an overlay network
       AGENT_CLUSTER_ADDR: tasks.portainer-agent
       # AGENT_PORT: 9001
-      LOG_LEVEL: DEBUG
+      LOG_LEVEL: ${PORTAINER_AGENT_LOG_LEVEL}
       AGENT_SECRET: '${PORTAINER_AGENT_SECRET}'   # allows portainer to authenticate to the agent
     ports:
       # The agent needs to be reachable on port 9001, but only within the stack.
@@ -85,8 +91,9 @@ services:
     image: portainer/portainer-ce:latest
     environment:
       # AGENT_PORT: 9001
-      LOG_LEVEL: DEBUG
+      LOG_LEVEL: ${PORTAINER_LOG_LEVEL}
       AGENT_SECRET: '${PORTAINER_AGENT_SECRET}'    # allows portainer to authenticate to the agent
+      ${PORTAINER_INJECTED_ENVIRONMENT_VARS}
     ports:
       - 8000:8000    # SSH tunnel entrypoint; used by edge portainer agents to connect to portainer server
     volumes:
