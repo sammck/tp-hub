@@ -6,8 +6,8 @@ version: "3.3"
 #    PORTAINER_CERT_RESOLVER
 #                            "prod" or "staging".  The certificate resolver to use for portainer.{PARENT_DNS_DOMAIN}
 #                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
-#    PARENT_DNS_DOMAIN       A registered public DNS domain that you control; e.g., "obama-family-home.com"
-#                                 The dashboard will use a certificate for traefik.${PARENT_DNS_DOMAIN}
+#    PORTAINER_DNS_NAME      The fully qualified public DNS domain that the Portainer web UI will run on.
+#                            There must be a DNS entry for this name that resolves to this network's public IP address.}
 #    PORTAINER_AGENT_SECRET  A secret string that is shared between portainer and portainer_agent.  This is used to
 #                                 authenticate the agent to portainer and vice-versa.
 #
@@ -30,23 +30,23 @@ version: "3.3"
 #    landashboard    8080   Serves the traefik dashboard on LAN-local http://<any-hostname>:8080.  Requires HTTP basic authentication.
 #
 # Externally, this stack serves:
-#    https://portainer.${PARENT_DNS_DOMAIN}          Dashboard (private LAN only). Requires a /hosts entry on each client, or a LAN-local DNS server.
-#    http://portainer.${PARENT_DNS_DOMAIN}           Redirects to https:// (private LAN only)
+#    https://${PORTAINER_DNS_NAME}          Dashboard (private LAN only). Requires a /hosts entry on each client, or a LAN-local DNS server.
+#    http://${PORTAINER_DNS_NAME}           Redirects to https:// (private LAN only)
 #
 # Portainer is only exposed on the LAN, but it requires a hostname that resolves publicly to this network's publid IP address. This
-# is the only way to get a valid lets-encrypt certificate for portainer.${PARENT_DNS_DOMAIN}. So by default, browser clients
+# is the only way to get a valid lets-encrypt certificate for ${PORTAINER_DNS_NAME}. So by default, browser clients
 # will get "404 page not found" when they navigate to the portainer URL. There are 2 ways to make it work:
 #
-#  1. Add a /etc/hosts entry on each client that points portainer.${PARENT_DNS_DOMAIN} to this host's LAN IP address.
-#  2. Run a LAN-local DNS server that overrides the public DNS entries for portainer.${PARENT_DNS_DOMAIN} and points them to this host's LAN IP address,
+#  1. Add a /etc/hosts entry on each client that points ${PORTAINER_DNS_NAME} to this host's LAN IP address.
+#  2. Run a LAN-local DNS server that overrides the public DNS entries for ${PORTAINER_DNS_NAME} and points them to this host's LAN IP address,
 #     and use a LAN-local DHCP server to configure each client to use the LAN-local DNS server.
 #
 # Prerequisites:
 #   Prerequisites common to all stacks (only done once when traefik is initially set up):
 #     * The traefik docker-compose stack has been installed and runs on this host, and can create certificates
 #       for DNS names that route to this network's public IP address.
-#     * A DNS CNAME entry has been created for portainer.${DNS_DOMAIN} that resolves to this network's public IP address.
-#       You must create a DNS entry for portainer.${DNS_DOMAIN} that resolves to your gateway router's public IP address
+#     * A DNS CNAME entry has been created for ${PORTAINER_DNS_NAME} that resolves to this network's public IP address.
+#       You must create a DNS entry for ${PORTAINER_DNS_NAME} that resolves to your gateway router's public IP address
 #       *before* starting this stack. If you do not, lets-encrypt will be unable to validate the certificate request,
 #       and will eventually throttle you for a week at a time.
 #     * A persistent docker volume "portainer_data" has been created before launching. This volume will contain all the
@@ -65,7 +65,7 @@ services:
       AGENT_CLUSTER_ADDR: tasks.portainer-agent
       # AGENT_PORT: 9001
       LOG_LEVEL: DEBUG
-      AGENT_SECRET: ${PORTAINER_AGENT_SECRET}   # allows portainer to authenticate to the agent
+      AGENT_SECRET: '${PORTAINER_AGENT_SECRET}'   # allows portainer to authenticate to the agent
     ports:
       # The agent needs to be reachable on port 9001, but only within the stack.
       # So no need to expose.  The agent is added to portainer with the address
@@ -86,7 +86,7 @@ services:
     environment:
       # AGENT_PORT: 9001
       LOG_LEVEL: DEBUG
-      AGENT_SECRET: ${PORTAINER_AGENT_SECRET}    # allows portainer to authenticate to the agent
+      AGENT_SECRET: '${PORTAINER_AGENT_SECRET}'    # allows portainer to authenticate to the agent
     ports:
       - 8000:8000    # SSH tunnel entrypoint; used by edge portainer agents to connect to portainer server
     volumes:
@@ -96,19 +96,19 @@ services:
       - traefik           # allows traefik to forward requests to portainer
       - portainer_agent   # allows portainer to connect to the local portainer agent on port 9001
     labels:
-      # expose Portainer web UI (port 9000 in the container) behind the traefik reverse-proxy (LAN only) at https://portainer.${PARENT_DNS_DOMAIN}.
-      # The client will need to add a /etc/hosts entry to point portainer.${PARENT_DNS_DOMAIN} at this host's LAN IP.
+      # expose Portainer web UI (port 9000 in the container) behind the traefik reverse-proxy (LAN only) at https://${PORTAINER_DNS_NAME}.
+      # The client will need to add a /etc/hosts entry to point ${PORTAINER_DNS_NAME} at this host's LAN IP.
       - "traefik.enable=true"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"     # Port 9000 is reverse-proxied
 
-      # A router for https://portainer.${PARENT_DNS_DOMAIN}
+      # A router for https://${PORTAINER_DNS_NAME}
       - "traefik.http.routers.portainer.entrypoints=lanwebsecure"
       - "traefik.http.routers.portainer.tls.certresolver=${PORTAINER_CERT_RESOLVER}"
-      - "traefik.http.routers.portainer.rule=Host(`portainer.${PARENT_DNS_DOMAIN}`)"
+      - "traefik.http.routers.portainer.rule=Host(`${PORTAINER_DNS_NAME}`)"
 
-      # A router for http://portainer.${PARENT_DNS_DOMAIN} that redirects to https
+      # A router for http://${PORTAINER_DNS_NAME} that redirects to https
       - "traefik.http.routers.portainer-http.entrypoints=lanweb"
-      - "traefik.http.routers.portainer-http.rule=Host(`portainer.${PARENT_DNS_DOMAIN}`)"
+      - "traefik.http.routers.portainer-http.rule=Host(`${PORTAINER_DNS_NAME}`)"
       - "traefik.http.routers.portainer-http.middlewares=portainer-https"
       - "traefik.http.middlewares.portainer-https.redirectscheme.scheme=https"
     restart: always

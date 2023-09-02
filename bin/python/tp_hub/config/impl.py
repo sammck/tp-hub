@@ -19,6 +19,7 @@ from pydantic import (
     BaseModel,
     Field,
     validator,
+    ValidationError,
 )
 
 from pydantic.fields import FieldInfo
@@ -526,6 +527,19 @@ class HubSettings(BaseSettings):
             v = { **base_env, **v }
         return v
 
+    @classmethod    
+    def _normalize_env_dict(cls, field_name: str, v: Dict[Any, Any]) -> Dict[str, str]:
+        assert isinstance(v, dict)
+        for k, pv in list(v.items()):
+            if not isinstance(k, str):
+                raise HubConfigError(f"Setting {field_name}.{k!r}={pv!r} invalid environment variable name; edit config.yml")
+            if pv is None:
+                del v[k]
+            elif not isinstance(v, str):
+                v[k] = str(pv)
+        logger.debug(f"{field_name}_validator: normalized environment={v}")
+        return v
+
     base_stack_env: Dict[str, str] = Field(default=None, description=usl(
         """Dictionary of environment variables that will be passed to all docker-compose stacks, including
            the Traefik and Portainer stacks, and stacks created by Portainer. Note that
@@ -543,33 +557,16 @@ class HubSettings(BaseSettings):
     def base_stack_env_validator(cls, v, values, **kwargs):
         sname = 'base_stack_env'
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        return cls._validate_env_dict(sname, v, values, **kwargs)
-
-    traefik_stack_env: Dict[str, str] = Field(default=None, description=usl(
-        """Dictionary of environment variables that will be passed to the Traefik docker-compose stack.
-        Actual used dict is created from base_stack_env, with this dict overriding."""
-      ))
-    """Dictionary of environment variables that will be passed to the Traefik docker-compose stack.
-    Actual used dict is created from base_stack_env, with this dict overriding."""
-
-    @validator('traefik_stack_env', pre=True, always=True)
-    def traefik_stack_env_validator(cls, v, values, **kwargs):
-        sname = 'traefic_stack_env'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        return cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
-
-    portainer_stack_env: Dict[str, str] = Field(default=None, description=usl(
-        """Dictionary of environment variables that will be passed to the Portainer docker-compose stack.
-        Actual used dict is created from base_stack_env, with this dict overriding."""
-      ))
-    """Dictionary of environment variables that will be passed to the Portainer docker-compose stack.
-    Actual used dict is created from base_stack_env, with this dict overriding."""
-
-    @validator('portainer_stack_env', pre=True, always=True)
-    def portainer_stack_env_validator(cls, v, values, **kwargs):
-        sname = 'portainer_stack_env'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        return cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+        v = cls._validate_env_dict(sname, v, values, **kwargs)
+        if not 'PARENT_DNS_DOMAIN' in v:
+            v['PARENT_DNS_DOMAIN'] = values['parent_dns_domain']
+        if not 'DEFAULT_CERT_RESOLVER' in v:
+            v['DEFAULT_CERT_RESOLVER'] = values['default_cert_resolver']
+        if not 'SHARED_APP_DNS_NAME' in v:
+            v['SHARED_APP_DNS_NAME'] = values['shared_app_dns_name']
+        if not 'SHARED_APP_CERT_RESOLVER' in v:
+            v['SHARED_APP_CERT_RESOLVER'] = values['shared_app_cert_resolver']
+        return cls._normalize_env_dict(sname, v)
 
     base_app_stack_env: Dict[str, str] = Field(default=None, description=usl(
         """Dictionary of environment variables that should be passed to all app stacks, including
@@ -588,10 +585,41 @@ class HubSettings(BaseSettings):
     def base_app_stack_env_validator(cls, v, values, **kwargs):
         sname = 'base_app_stack_env'
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        return cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+        v = cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+        return cls._normalize_env_dict(sname, v)
+
+    traefik_stack_env: Dict[str, str] = Field(default=None, description=usl(
+        """Dictionary of environment variables that will be passed to the Traefik docker-compose stack.
+        Actual used dict is created from base_stack_env, with this dict overriding."""
+      ))
+    """Dictionary of environment variables that will be passed to the Traefik docker-compose stack.
+    Actual used dict is created from base_stack_env, with this dict overriding."""
+
+    @validator('traefik_stack_env', pre=True, always=True)
+    def traefik_stack_env_validator(cls, v, values, **kwargs):
+        sname = 'traefik_stack_env'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        v = cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+        if v.get('DEFAULT_CERT_RESOLVER') is None:
+            v['DEFAULT_CERT_RESOLVER'] = values['default_cert_resolver']
+        if v.get('TRAEFIK_CERT_RESOLVER') is None:
+            v['TRAEFIK_CERT_RESOLVER'] = values['traefik_dashboard_cert_resolver']
+        if v.get('TRAEFIK_DNS_NAME') is None:
+            v['TRAEFIK_DNS_NAME'] = values['traefik_dashboard_dns_name']
+        if v.get('LETSENCRYPT_OWNER_EMAIL_PROD') is None:
+            v['LETSENCRYPT_OWNER_EMAIL_PROD'] = values['letsencrypt_owner_email_prod']
+        if v.get('LETSENCRYPT_OWNER_EMAIL_STAGING') is None:
+            v['LETSENCRYPT_OWNER_EMAIL_STAGING'] = values['letsencrypt_owner_email_prod']
+        if v.get('TRAEFIK_HTPASSWD') is None:
+            v['TRAEFIK_HTPASSWD'] = values['traefik_dashboard_htpasswd'].replace('$', '$$')
+        if v.get('TRAEFIK_LOG_LEVEL') is None:
+            v['TRAEFIK_LOG_LEVEL'] = "DEBUG"
+        v['TRAEFIK_LOG_LEVEL'] = v['TRAEFIK_LOG_LEVEL'].upper()
+
+        return cls._normalize_env_dict(sname, v)
 
     portainer_runtime_env: Dict[str, str] = Field(default=None, description=usl(
-        """Dictionary of environment variables that will be installed into Portainer's actual runtime
+        """Dictionary of environment variables that will be injected into Portainer's actual runtime
            environment, and thus will be implicitly available for variable expansion in all
            docker-compose stacks started by Portainer, as well as by any processes started
            in the Portainer container.
@@ -601,13 +629,56 @@ class HubSettings(BaseSettings):
        environment, and thus will be implicitly available for variable expansion in all
        docker-compose stacks started by Portainer, as well as by any processes started
        in the Portainer container.
-       Actual used dict is created from base_app_stack_env, with this dict overriding."""
+       The values here do not need to be pre-escaped for docker-compose, since they are
+       not intended for direct use in docker-compose. They will be escaped later when they are
+       used to build the portainer_stack environment section.
+
+       The actual used dict is created from base_app_stack_env, with this dict overriding.
+       It is assumed the values inherited from base_app_stack_env are suitably pre-escaped for use in
+       a docker-compose file, but it is also assumed that we intend to pass them through into
+       the portainer environment to be *AGAIN* used in docker-compose. So the inherited values
+       will effectively be escaped twice. This is not a problem, but it is a bit confusing."""
 
     @validator('portainer_runtime_env', pre=True, always=True)
     def portainer_runtime_env_validator(cls, v, values, **kwargs):
         sname = 'portainer_runtime_env'
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        return cls._validate_env_dict(sname, v, values, base_env=values['base_app_stack_env'], **kwargs)
+        v = cls._validate_env_dict(sname, v, values, base_env=values['base_app_stack_env'], **kwargs)
+
+        
+        return cls._normalize_env_dict(sname, v)
+
+    portainer_stack_env: Dict[str, str] = Field(default=None, description=usl(
+        """Dictionary of environment variables that will be passed to the Portainer docker-compose stack.
+        Actual used dict is created from base_stack_env, with this dict overriding."""
+      ))
+    """Dictionary of environment variables that will be passed to the Portainer docker-compose stack.
+    Actual used dict is created from base_stack_env, with this dict overriding."""
+
+    @validator('portainer_stack_env', pre=True, always=True)
+    def portainer_stack_env_validator(cls, v, values, **kwargs):
+        sname = 'portainer_stack_env'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        v = cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+        if v.get('PORTAINER_CERT_RESOLVER') is None:
+            v['PORTAINER_CERT_RESOLVER'] = values['portainer_cert_resolver']
+        if v.get('PORTAINER_DNS_NAME') is None:
+            v['PORTAINER_DNS_NAME'] = values['portainer_dns_name']
+        if v.get('PORTAINER_AGENT_SECRET') is None:
+            v['PORTAINER_AGENT_SECRET'] = values['portainer_agent_secret']
+
+        if v.get('PORTAINER_INJECTED_ENVIRONMENT_VARS') is None:
+            # Encode the portainer_runtime_env dict as a yaml string for expansion
+            # in the "environment" section of the portainer stack.
+            lines: List[str] = []
+            for k, pv in values['portainer_runtime_env'].items():
+                lines.append(f"{k}: {pv!r}")
+            for i in range(1, len(lines)):
+                lines[i] = '      ' + lines[i]
+            result = '\n'.join(lines).replace('$', '$$')
+            v['PORTAINER_INJECTED_ENVIRONMENT_VARS'] = '\n'.join(lines)
+
+        return cls._normalize_env_dict(sname, v)
 
 @cache
 def hub_settings(**params) -> HubSettings:
