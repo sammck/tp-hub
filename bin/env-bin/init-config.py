@@ -41,11 +41,14 @@ from tp_hub import (
     set_config_yml_property,
     unindent_string_literal as usl,
     hash_username_password,
+    hash_password,
     is_valid_email_address,
     is_valid_dns_name,
   )
 
 from tp_hub.internal_types import *
+
+from project_init_tools import get_git_user_email
 
 def prompt_value(prompt: str, default: Optional[str]=None) -> str:
     prompt = prompt.strip()
@@ -119,11 +122,17 @@ def main() -> int:
 
     letsencrypt_owner_email = data.get("letsencrypt_owner_email")
     if force or letsencrypt_owner_email is None:
+        default_email = letsencrypt_owner_email
+        if default_email is None:
+            try:
+                default_email = get_git_user_email(cwd=get_project_dir())
+            except Exception:
+                pass
         while True:
             letsencrypt_owner_email = prompt_value(usl(
                 """Lets-encrypt requires an email address to associate with SSL certificates.
                    Please enter an email address to associate with SSL certificates
-                """), default=letsencrypt_owner_email).strip()
+                """), default=default_email).strip()
             if not is_valid_email_address(letsencrypt_owner_email):
                 print("Invalid email address; please try again", file=sys.stderr)
                 continue
@@ -148,6 +157,33 @@ def main() -> int:
             hashed = hash_username_password('admin', new_password)
             set_config_yml_property(f"hub.traefik_dashboard_htpasswd", hashed)
             print("Traefik dashboard password reset successfully!", file=sys.stderr)
+
+    portainer_password_hash = data.get("portainer_initial_password_hash")
+    if force or portainer_password_hash is None:
+        need_reset = portainer_password_hash is None or prompt_yes_no(usl(
+                """A Portainer initial password has already been set...
+                   Reset Portainer initial password?
+                """), default=False)
+        if need_reset:
+            new_password = prompt_verify_password(usl(
+                """Portainer provides a rich web UI. It will only be exposed on the local LAN.
+                   Nonetheless, Portainer is protected by its own username/hashed-password
+                   database. The first time the Portainer web UI is used, the only login account
+                   is 'admin', and the password is an initial password that must be configured
+                   before Portainer is started for the first time. It is meant to be temporary;
+                   it should never be a re-use of a durable password.
+
+                   The first time you log into Portainer, you will log in with username 'admin'
+                   and the configured initial password. At that time, you should immediately
+                   change the password to a durable hard-to-guess password.
+                   After you have changed the password, the initial password is no longer used,
+                   unless you wipe Portainer state by recreating the 'portainer_data' volume.
+
+                   Enter a Portainer initial password for user 'admin'"""
+              ))
+            hashed = hash_password(new_password)
+            set_config_yml_property(f"hub.portainer_initial_password_hash", hashed)
+            print("Poratiner initial admin password reset successfully!", file=sys.stderr)
 
     parent_dns_domain = data.get("parent_dns_domain")
     if force or parent_dns_domain is None:

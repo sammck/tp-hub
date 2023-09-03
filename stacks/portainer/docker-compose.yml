@@ -3,6 +3,25 @@ version: "3.3"
 # docker-compose.yml configuration for a Traefik reverse-proxy with dashboard.
 #
 #  Environment Variables:
+#    PORTAINER_INITIAL_PASSWORD_HASH
+#                            The initial bcrypt-hashed password of the Portainer 'admin' account to use for
+#                            bootstrapping Portainer security. It is meant to be temporary. The first time
+#                            you log into Portainer, you will log in with username 'admin' and the password
+#                            associated with this hash. At that time, you should immediately change the
+#                            password to a durable hard-to-guess password.
+#                            After you have changed the password, this value is no longer used, unless
+#                            you wipe Portainer state by recreating the 'portainer_data' volume.
+#
+#                            The value of this string is similar to that produced by `htpasswd`, but does not include
+#                            the '<username>:' prefix normally produced by the `htpasswd` command. It can be generated using
+#                            `htpasswd -nB admin | sed 's/[^:]*://'` or set with `hub config set-portainer-initial-password`.
+#                            This value is sensitive because it can be used for an offline dictionary attack,
+#                            and should not be stored in a git repository. It should not be set to a re-used password.
+#
+#                            Note that this value may contain dollar-signs, so if it is directly inserted
+#                            in a docker-compose.yml file, each dollar-sign must be doubled. That is
+#                            automatically taken care of when the value is expanded from an environment
+#                            variable, as it is here.
 #    PORTAINER_CERT_RESOLVER
 #                            "prod" or "staging".  The certificate resolver to use for portainer.{PARENT_DNS_DOMAIN}
 #                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
@@ -89,11 +108,18 @@ services:
 
   portainer:
     image: portainer/portainer-ce:latest
+    extends:
+      file: injected-env-vars.yml
+      service: injected_env_vars
     environment:
       # AGENT_PORT: 9001
       LOG_LEVEL: ${PORTAINER_LOG_LEVEL}
       AGENT_SECRET: '${PORTAINER_AGENT_SECRET}'    # allows portainer to authenticate to the agent
-      ${PORTAINER_INJECTED_ENVIRONMENT_VARS}
+    command:
+      # Initial password hash for the 'admin' account.  This is a temporary password that is only used
+      # on first launch, or when the portainer_data volume is wiped.  It is meant to be changed immediately
+      # after first login.  It is not used after that.
+      - "--admin-password=${PORTAINER_INITIAL_PASSWORD_HASH:-}"
     ports:
       - 8000:8000    # SSH tunnel entrypoint; used by edge portainer agents to connect to portainer server
     volumes:

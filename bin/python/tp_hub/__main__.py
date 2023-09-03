@@ -42,8 +42,13 @@ from tp_hub import (
     init_current_hub_settings,
     get_config_yml_property,
     set_config_yml_property,
+    hash_password,
+    check_password,
     hash_username_password,
     check_username_password,
+    build_hub,
+    build_traefik,
+    build_portainer,
   )
 
 from tp_hub.route53_dns_name import create_route53_dns_name, get_aws, AwsContext
@@ -195,6 +200,37 @@ class CommandHandler:
             print(f"SUCCESS: The password is correct!", file=sys.stderr)
         return 0
 
+    def cmd_config_set_portainer_initial_password(self) -> int:
+        password = self._args.password
+        if password is None:
+            first = True
+            for i in range(5):
+                if not first:
+                    print("Passwords do not match; try again", file=sys.stderr)
+                first = False
+                password = getpass.getpass(f"Enter new initial Portainer password for user 'admin': ")
+                confirm_password = getpass.getpass(f"Confirm new initial Portainer password for user 'admin': ")
+                if password == confirm_password:
+                    break
+            else:
+                raise CmdExitError(1, "Too many attempts; password not reset")
+        hashed = hash_password(password)
+        set_config_yml_property(f"hub.portainer_initial_password_hash", hashed)
+        return 0
+
+    def cmd_config_check_portainer_initial_password(self) -> int:
+        hashed = self.get_settings().portainer_initial_password_hash
+        if ':' in hashed:
+            raise HubError(1, "Configured password hash is malformed")
+        password = self._args.password
+        if password is None:
+            password = getpass.getpass(f"Enter initial Portainer password for user 'admin'': ")
+        if not check_password(hashed, password):
+            print(f"FAIL: The password is incorrect!", file=sys.stderr)
+            return 1
+        print(f"SUCCESS: The password is correct!", file=sys.stderr)
+        return 0
+
     def cmd_config_set_portainer_secret(self) -> int:
         secret = self._args.secret
         if secret is None:
@@ -263,6 +299,20 @@ class CommandHandler:
     def cmd_config_schema(self) -> int:
         schema = self.get_settings_schema()
         print(json.dumps(schema, indent=2, sort_keys=True))
+        return 0
+
+    def cmd_build(self) -> int:
+        target: str = self._args.target or "hub"
+
+        if target == 'hub':
+            build_hub()
+        elif target == 'traefik':
+            build_traefik()
+        elif target == 'portainer':
+            build_portainer()
+        else:
+            raise ValueError(f"Invalid build target {target}")
+
         return 0
 
     def cmd_cloud_bare(self) -> int:
@@ -424,6 +474,16 @@ class CommandHandler:
                                  '''f"{value}.{config.parent_dns_domain}" will be used''')
         sp.set_defaults(func=self.cmd_cloud_dns_create_name, subparser=sp)
 
+        # ======================= build
+
+        sp = subparsers.add_parser('build',
+                                description='''Build artifacts required to run the hub stacks.''')
+        sp.add_argument("--force", "-f", action="store_true",
+                            help="Force clean build")
+        sp.add_argument("target", nargs='?', default="hub", choices=["hub", "traefik", "portainer"],
+                            help="The build target to build. Default: hub")
+        sp.set_defaults(func=self.cmd_build, subparser=sp)
+
         # ======================= config
 
         sp = subparsers.add_parser('config',
@@ -479,12 +539,30 @@ class CommandHandler:
         # ======================= config check-traefik-password
 
         sp = config_subparsers.add_parser('check-traefik-password',
-                                description='''Checks that a given username/password matches the hash in traefik_dashboard_htpasswd in config.yml.''')
+                                description='''Checks that a given username/password matches the hash in config.traefik_dashboard_htpasswd.''')
         sp.add_argument('--user', '-u', type=str, dest='username', default=None,
-                            help='''The username to use for logging into the Traefik dashboard. Default: the username configured in traeffik_dashboard_htpasswd''')
+                            help='''The username to use for logging into the Traefik dashboard. Default: the username configured in config.traefik_dashboard_htpasswd''')
         sp.add_argument('password', default=None, nargs='?',
                             help='''The password to check. If not provided, you will be prompted for a hidden password.''')
         sp.set_defaults(func=self.cmd_config_check_traefik_password, subparser=sp)
+
+        # ======================= config set-portainer-initial-password
+
+        sp = config_subparsers.add_parser('set-portainer-initial-password',
+                                description='''Set the value of property portainer_initial_password_hash in config.yml to a hash of a given password.'''
+                                            ''' This is the password that will be used with username 'admin' to log into Portainer for the first time.'''
+                                            ''' It is not used after the first time you change the admin password in Portainer.''')
+        sp.add_argument('password', default=None, nargs='?',
+                            help='''The new password. If not provided, you will be prompted for a hidden password.''')
+        sp.set_defaults(func=self.cmd_config_set_portainer_initial_password, subparser=sp)
+
+        # ======================= config check-portainer-initial-password
+
+        sp = config_subparsers.add_parser('check-portainer-initial-password',
+                                description='''Checks that a given password matches the hash in config.portainer_initial_password_hash.''')
+        sp.add_argument('password', default=None, nargs='?',
+                            help='''The password to check. If not provided, you will be prompted for a hidden password.''')
+        sp.set_defaults(func=self.cmd_config_check_portainer_initial_password, subparser=sp)
 
         # ======================= config set-portainer-secret
 

@@ -1,0 +1,131 @@
+version: "3.3"
+
+# docker-compose.yml configuration for a simple HTTP service container
+# that sits behind traefik and returns harmless information about the HTTP request. Useful
+# for debugging connectivity and Traefik configuration issues.
+#
+# WARNING: This stack exposes all HTTP client headers to any client that can access it. This
+#          includes cookies marked 'httpOnly' as well as headers added by reverse proxies
+#          before being forwarded to this service. In notrivial configurations it may pose
+#          a security risk. For example, JavaScript running in a browser in the same
+#          site domain will be able to read its httpOnly cookies, which can create a
+#          cross-site scripting attack risk even if this service is behind authentication.
+#          Do not use this stack in a production environment without careful consideration .
+#
+#  Environment Variables:
+#    PARENT_DNS_DOMAIN          A registered public DNS domain that you control; e.g., "obama-family-home.com".
+#                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
+#                               environment, and does not need to be added to launch environment variables.
+#
+#    DEFAULT_CERT_RESOLVER      The default certificate resolver to use for all stacks.
+#                               "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt.
+#                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
+#                               environment, and does not need to be added to launch environment variables.
+#
+#    CERT_RESOLVER              The certificate resolver to use for ${SUBDOMAIN}.${PARENT_DNS_DOMAIN}.
+#                               "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
+#                               If ommitted, ${DEFAULT_CERT_RESOLVER} is used.
+#
+#    SUBDOMAIN                  The DNS subdomain that is prepended to ${PARENT_DNS_DOMAIN} to get this service's
+#                               DNS name.  If omitted, defaults to 'whoami'
+#
+#    WHOAMI_HOSTNAME            The linux hostname used for the service container. Not related to the HTTP hostname
+#                               which is ${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}. This value is included in the whoami
+#                               HTTP respose as "Hostname: ${WHOAMI_HOSTNAME:-${SUBDOMAIN:-whoami}}".
+#                               It is useful to distinguish between responses from multiple instances of this service container.
+#                               If omitted, defaults to ${SUBDOMAIN:-whoami}.
+#
+# This stack serves:
+#    http://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}     (public internet or private LAN)
+#    https://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}    (public internet or local LAN)
+#    http://<any-hostname>/${SUBDOMAIN:-whoami}           (private LAN only)
+#
+# Prerequisites:
+#   Prerequisites common to all stacks (only done once when traefik is initially set up):
+#     * A DNS entry with a stable name (e.g., ddns.${PARENT_DNS_DOMAIN}) has been configured to resolve to the current public IP address
+#       of your network's gateway router. Since typical residential ISPs may change your public IP address periodically, it is
+#       usually necessary to involve Dynamic DNS (DDNS) to make this work. Some gateway routers (e.g., eero) have DDNS support built-in.
+#       Your DDNS provider will provide you with an obscure but unique and stable (as long as you stay with the DDNS provider)
+#       DNS name for your gateway's public IP address; e.g., "g1234567.eero.online". You should then create a CNAME entry for
+#       ddns.${PARENT_DNS_DOMAIN} that points at the obscure DDNS name. That makes an easy-to-remember DNS name for your network's public IP
+#       address, and ensures that if your DDNS obscure name ever changes, you will only have to update this one CNAME record
+#       to be back in business.  
+#     * Your network's gateway router must be configured to forward public ports 80 and 443 to traefik on alternate destination ports
+#       (e.g., 80->7080, 443->7443). Alternate ports are required because ports 80 and 443 are used to serve lan-local (non-internet)
+#       requests and must not be exposed to the internet.
+#     * traefik should be configured with entrypoints as follows:
+#            web            HTTP requests coming in from the public internet through <your-network-public-ip-address>:80
+#            websecure      HTTPS requests coming in from the public internet through <your-network-public-ip-address>:443
+#            lanweb         HTTP reguests coming in from the intranet through <this-host-lan-ip>:80. Not reachable from internet.
+#            lanwebsecure   HTTPS reguests coming in from the intranet through <this-host-lan-ip>:443. Not reachable from internet.
+#     * traefik should be configured to proxy requests to backend service containers through docker network "traefik"
+#
+#  Special prerequisites for this stack.
+#     * A DNS CNAME entry has been created for ${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN} that resolves to ddns.${PARENT_DNS_DOMAIN} (see above).
+#       You must create a DNS entry for ${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN} that resolves to your gateway router's public IP address
+#       *before* starting this stack. If you do not, lets-encrypt will be unable to validate the certificate request,
+#       and will eventually throttle you for a week at a time.
+services:
+  whoami:
+    image: "traefik/whoami"    # a simple, harmless HTTP server on port 80 that returns info about the HTTP request, such as headers
+    hostname: ${WHOAMI_HOSTNAME:-${SUBDOMAIN:-whoami}}
+    networks:
+      - traefik                # The network through which traefik forwards requests to our service
+    restart: always            # This container will be restarted when this host reboots or docker is restarted
+    labels:
+      - "traefik.enable=true"   # tells traefik that this container should be reverse-proxied
+
+      # -----------------------------------------
+      # A router for https://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}, on the public internet entrypoint
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-public.entrypoints=websecure"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-public.tls.certresolver=${CERT_RESOLVER:-${DEFAULT_CERT_RESOLVER}}"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-public.rule=Host(`${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}`)"
+      # add a request header that will be displayed by whoami to show route configuration
+      - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-https-public-headers.headers.customrequestheaders.X-Route-Info=entrypoint=websecure; cert_resolver=${CERT_RESOLVER:-${DEFAULT_CERT_RESOLVER}}"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-public.middlewares=${SUBDOMAIN:-whoami}-https-public-headers"
+      # -----------------------------------------
+      # A router for https://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}, on the local lan entrypoint
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-private.entrypoints=lanwebsecure"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-private.tls.certresolver=${CERT_RESOLVER:-${DEFAULT_CERT_RESOLVER}}"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-private.rule=Host(`${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}`)"
+      # add a request header that will be displayed by whoami to show route configuration
+      - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-https-private-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanwebsecure; cert_resolver=${CERT_RESOLVER:-${DEFAULT_CERT_RESOLVER}}"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-private.middlewares=${SUBDOMAIN:-whoami}-https-private-headers"
+      # -----------------------------------------
+      # A router for http://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}, on either the public internet entrypint
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-public.entrypoints=web"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-public.rule=Host(`${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}`)"
+      # add a request header that will be displayed by whoami to show route configuration
+      - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-http-public-headers.headers.customrequestheaders.X-Route-Info=entrypoint=web"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-public.middlewares=${SUBDOMAIN:-whoami}-http-public-headers"
+      # -----------------------------------------
+      # A router for http://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}, on the local lan entrypoint
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private.entrypoints=lanweb"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private.rule=Host(`${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}`)"
+      # add a request header that will be displayed by whoami to show route configuration
+      - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-http-private-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanweb"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private.middlewares=${SUBDOMAIN:-whoami}-http-private-headers"
+      # -----------------------------------------
+      # A router for http://<any-hostname>/${SUBDOMAIN:-whoami}, on the local LAN entrypoint only
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.entrypoints=lanweb"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.rule=PathPrefix(`/${SUBDOMAIN:-whoami}`)"
+      # Following middleware will strip off the /${SUBDOMAIN:-whoami} prefix before forwarding to the whoami service
+      - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-http-private-path-prefix.stripPrefix.prefixes=/${SUBDOMAIN:-whoami}"
+      # Following middleware will add a request header that will be displayed by whoami to show route configuration
+      - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-http-private-path-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanweb"
+      # use both middlewares
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.middlewares=${SUBDOMAIN:-whoami}-http-private-path-prefix,${SUBDOMAIN:-whoami}-http-private-path-headers"
+      # -----------------------------------------
+
+networks:
+
+  # The backend docker network used for traefik reverse-proxy request forwarding. All containers
+  # that provide HTTP services behind the traefik reverse-proxy should be placed in
+  # this network. traefik will route to the service on its exposed port, if there is exactly one, or port
+  # 80 by default.  This can be overridden with:
+  #
+  #    traefik.http.services.<service-name>.loadbalancer.server.port=<custom-port>
+  #
+  # It is not necessary for containers behind the reverse-proxy to expose their HTTP port to the host.
+  traefik:
+    external: true

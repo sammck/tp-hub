@@ -347,28 +347,96 @@ class HubSettings(BaseSettings):
             raise HubConfigError(f"Setting '{sname}'={v!r} must be a secret string >= 16 characters long; use 'hub config set-portainer-secret' to set it to a random value")
         return v
 
+    portainer_initial_password_hash: str = Field(default=None, description=usl(
+        """The initial bcrypt-hashed password of the Portainer 'admin' account to use for
+           bootstrapping Portainer security. It is meant to be temporary. The first time
+           you log into Portainer, you will log in with username 'admin' and the password
+           associated with this hash. At that time, you should immediately change the
+           password to a durable hard-to-guess password.
+           After you have changed the password, this value is no longer used, unless
+           you wipe Portainer state by recreating the 'portainer_data' volume.
+
+           The value of this string is similar to that produced by `htpasswd`, but does not include
+           the '<username>:' prefix normally produced by the `htpasswd` command. It can be generated using
+           `htpasswd -nB admin | sed 's/[^:]*://'` or set with `hub config set-portainer-initial-password`.
+           This value is sensitive because it can be used for an offline dictionary attack,
+           and should not be stored in a git repository. It should not be set to a re-used password.
+
+           Note that this value may contain dollar-signs, so if it is directly inserted
+           in a docker-compose.yml file, each dollar-sign must be doubled (they
+           are not doubled here).
+           Example: '$2y$05$LCmVF2WJY/Ue0avRDcsDmelPqzXQcMIXoRxHF3bR62HuIP.fqqqZm'
+           REQUIRED (generated and installed in user config by init-config)."""
+     ))
+    """The initial bcrypt-hashed password of the Portainer 'admin' account to use for
+       bootstrapping Portainer security. It is meant to be temporary. The first time
+       you log into Portainer, you will log in with username 'admin' and the password
+       associated with this hash. At that time, you should immediately change the
+       password to a durable hard-to-guess password.
+       After you have changed the password, this value is no longer used, unless
+       you wipe Portainer state by recreating the 'portainer_data' volume.
+
+       The value of this string is similar to that produced by `htpasswd`, but does not include
+       the '<username>:' prefix normally produced by the `htpasswd` command. It can be generated using
+       `htpasswd -nB admin | sed 's/[^:]*://'` or set with `hub config set-portainer-initial-password`.
+       This value is sensitive because it can be used for an offline dictionary attack,
+       and should not be stored in a git repository. It should not be set to a re-used password.
+
+       Note that this value may contain dollar-signs, so if it is directly inserted
+       in a docker-compose.yml file, each dollar-sign must be doubled (they
+       are not doubled here).
+
+       Example: '$2y$05$LCmVF2WJY/Ue0avRDcsDmelPqzXQcMIXoRxHF3bR62HuIP.fqqqZm'
+       REQUIRED (generated and installed in user config by init-config)."""
+
+    @validator('portainer_initial_password_hash', pre=True, always=True)
+    def portainer_initial_password_hash_validator(cls, v, values, **kwargs):
+        sname = 'portainer_initial_password_hash'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            raise HubConfigError(f"Setting {sname} is required; generate a password hash and set it with 'hub config set-portainer-initial-password'")
+        if not isinstance(v, str):
+            raise HubConfigError(f"Setting '{sname}'={v!r} must be a string; generate a password hash and set it with 'hub config set-portainer-initial-password'")
+        if ':' in v or len(v) < 15 or not v.startswith('$2'):
+            raise HubConfigError(f"Setting '{sname}'={v!r} must be a string of the form '<bcrypt-hashed-password>'; generate a password hash and set it with 'hub config set-initial-portainer-password'")
+        return v
+
     traefik_dashboard_htpasswd: str = Field(default=None, description=usl(
-        """The admin username and bcrypt-hashed password to use for HTTP Basic authhentication on
-        the Traefik dashboard. The value of this string is of the form "username:hashed_password",
-        and can be generated using the `htpasswd -nB admin` or tools included in this project.
-        This value is sensitive, and should not be stored in a git repository. Also, a hard-to-guess
-        password should be used to defend against a dictionary attack if the hash is ever compromised.
-        Note that this value may contain dollar-signs, so when it is passed to docker-compose
-        via an environment variable, all dollar-signs must be doubled to escape them (they
-        are not doubled here).
-        Example: 'admin:$2y$05$LCmVF2WJY/Ue0avRDcsDmelPqzXQcMIXoRxHF3bR62HuIP.fqqqZm'
-        REQUIRED (generated and installed in user config by provisioning tools)."""
+        """A comma-delimited list of admin (username, bcrypt-hashed password) pairs
+           to use for HTTP Basic authhentication on the Traefik dashboard.
+           Each entry is of the form "username:hashed_password", and can be generated
+           using `htpasswd -nB admin` or a single user can be set with
+           `hub config set-traefik-password`.
+    
+           This value is sensitive because it can be used for an offline dictionary attack,
+           and should not be stored in a git repository. Also, a hard-to-guess
+           password should be used to defend against a dictionary attack if the hash is
+           ever compromised.
+    
+           Note that this value may contain dollar-signs, so if it is directly inserted
+           in a docker-compose.yml file, each dollar-sign must be doubled (they
+           are not doubled here).
+    
+           Example: 'admin:$2y$05$LCmVF2WJY/Ue0avRDcsDmelPqzXQcMIXoRxHF3bR62HuIP.fqqqZm'
+           REQUIRED (generated and installed in user config by init-config)."""
       ))
-    """The admin username and bcrypt-hashed password to use for HTTP Basic authhentication on
-    the Traefik dashboard. The value of this string is of the form "username:hashed_password",
-    and can be generated using the `htpasswd -nB admin` or tools included in this project.
-    This value is sensitive, and should not be stored in a git repository. Also, a hard-to-guess
-    password should be used to defend against a dictionary attack if the hash is ever compromised.
-    Note that this value may contain dollar-signs, so when it is passed to docker-compose
-    via an environment variable, all dollar-signs must be doubled to escape them (they
-    are not doubled here).
-    Example: 'admin:$2y$05$LCmVF2WJY/Ue0avRDcsDmelPqzXQcMIXoRxHF3bR62HuIP.fqqqZm'
-    REQUIRED (generated and installed in user config by provisioning tools)."""
+    """A comma-delimited list of admin (username, bcrypt-hashed password) pairs
+       to use for HTTP Basic authhentication on the Traefik dashboard.
+       Each entry is of the form "username:hashed_password", and can be generated
+       using `htpasswd -nB admin` or a single user can be set with
+       `hub config set-traefik-password`.
+
+       This value is sensitive because it can be used for an offline dictionary attack,
+       and should not be stored in a git repository. Also, a hard-to-guess
+       password should be used to defend against a dictionary attack if the hash is
+       ever compromised.
+
+       Note that this value may contain dollar-signs, so if it is directly inserted
+       in a docker-compose.yml file, each dollar-sign must be doubled (they
+       are not doubled here).
+
+       Example: 'admin:$2y$05$LCmVF2WJY/Ue0avRDcsDmelPqzXQcMIXoRxHF3bR62HuIP.fqqqZm'
+       REQUIRED (generated and installed in user config by init-config)."""
 
     @validator('traefik_dashboard_htpasswd', pre=True, always=True)
     def traefik_dashboard_htpasswd_validator(cls, v, values, **kwargs):
@@ -611,7 +679,11 @@ class HubSettings(BaseSettings):
         if v.get('LETSENCRYPT_OWNER_EMAIL_STAGING') is None:
             v['LETSENCRYPT_OWNER_EMAIL_STAGING'] = values['letsencrypt_owner_email_prod']
         if v.get('TRAEFIK_HTPASSWD') is None:
-            v['TRAEFIK_HTPASSWD'] = values['traefik_dashboard_htpasswd'].replace('$', '$$')
+            # Note that there may be dollar-signs in the htpasswd value, so they will
+            # be doubled when expanded into the docker-compose.yml file to escape them.
+            # The doubled version will be displayed in `docker-compose config`. This
+            # is normal.
+            v['TRAEFIK_HTPASSWD'] = values['traefik_dashboard_htpasswd']
         if v.get('TRAEFIK_LOG_LEVEL') is None:
             v['TRAEFIK_LOG_LEVEL'] = "DEBUG"
         v['TRAEFIK_LOG_LEVEL'] = v['TRAEFIK_LOG_LEVEL'].upper()
@@ -666,24 +738,18 @@ class HubSettings(BaseSettings):
             v['PORTAINER_DNS_NAME'] = values['portainer_dns_name']
         if v.get('PORTAINER_AGENT_SECRET') is None:
             v['PORTAINER_AGENT_SECRET'] = values['portainer_agent_secret']
+        if v.get('PORTAINER_INITIAL_PASSWORD_HASH') is None:
+            # Note that there may be dollar-signs in the hash value, so they will
+            # be doubled when expanded into the docker-compose.yml file to escape them.
+            # The doubled version will be displayed in `docker-compose config`. This
+            # is normal.
+            v['PORTAINER_INITIAL_PASSWORD_HASH'] = values['portainer_initial_password_hash']
         if v.get('PORTAINER_LOG_LEVEL') is None:
             v['PORTAINER_LOG_LEVEL'] = "DEBUG"
         v['PORTAINER_LOG_LEVEL'] = v['PORTAINER_LOG_LEVEL'].upper()
         if v.get('PORTAINER_AGENT_LOG_LEVEL') is None:
             v['PORTAINER_AGENT_LOG_LEVEL'] = "DEBUG"
         v['PORTAINER_AGENT_LOG_LEVEL'] = v['PORTAINER_AGENT_LOG_LEVEL'].upper()
-
-        if v.get('PORTAINER_INJECTED_ENVIRONMENT_VARS') is None:
-            # Encode the portainer_runtime_env dict as a yaml string for expansion
-            # in the "environment" section of the portainer stack.
-            lines: List[str] = []
-            for k, pv in values['portainer_runtime_env'].items():
-                lines.append(f"{k}: {pv!r}")
-            for i in range(1, len(lines)):
-                lines[i] = '      ' + lines[i]
-            result = '\n'.join(lines).replace('$', '$$')
-            v['PORTAINER_INJECTED_ENVIRONMENT_VARS'] = '\n'.join(lines)
-
         return cls._normalize_env_dict(sname, v)
 
 @cache

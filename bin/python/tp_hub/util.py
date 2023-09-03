@@ -493,3 +493,22 @@ def is_valid_email_address(name: str) -> bool:
     if not _valid_email_username_re.match(parts[0]):
         return False
     return True
+
+def rel_symlink(src: str, dst: str) -> None:
+    """
+    Create a relative symbolic link.
+
+    Args:
+        src:
+            The path to target file that the link will point to
+
+        dst:
+            The path to the symlink file that will be created
+    """
+    abs_symlink_file = os.path.abspath(dst)
+    abs_origin_dir = os.path.dirname(abs_symlink_file)
+    abs_target = os.path.abspath(src)
+    rel_pathname = os.path.relpath(abs_target, abs_origin_dir)
+    logger.debug(f"os.symlink src (target)={rel_pathname}, dst (symlink file)={dst}, abs src (target)={abs_target}, abs dst (symlink file)={abs_symlink_file}")
+
+    os.symlink(rel_pathname, dst)
