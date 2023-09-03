@@ -167,6 +167,16 @@ services:
       # configuration for the Traefik dashboard, as if it were launched separately.
       - "traefik.enable=true"
 
+      # A middleware that imposes HTTP basic authentication on any route that uses it.
+      # The accepted usernames/passwords are specified as a comma-delimited list of
+      # hash strings in TRAEFIK_HTPASSWD, each of which is compatible with the output of
+      # `htpasswd -nB <username>`.
+      # Note that the hash string may contain dollar-signs, so if it is specified in a docker-compose.yml
+      # file, each dollar-sign must be doubled to escape it. This escaping is done automatically
+      # when an environment variable is expanded by docker-compose, so there is no need
+      # to escape the value of TRAEFIK_HTPASSWD.
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_HTPASSWD}"
+
       # A router for https://{TRAEFIK_DNS_NAME}
       # that only responds to LAN-local requests, and requires HTTP basic authentication.
       - "traefik.http.routers.traefik.entrypoints=lanwebsecure"
@@ -174,7 +184,6 @@ services:
       - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DNS_NAME}`) && (Path(`/`) || PathPrefix(`/api`,`/dashboard`))"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.middlewares=traefik-auth"
-      - "traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_HTPASSWD}"
 
       # A router for http://${TRAEFIK_DNS_NAME} that redirects to https
       - "traefik.http.routers.traefik-redirect.entrypoints=lanweb"
