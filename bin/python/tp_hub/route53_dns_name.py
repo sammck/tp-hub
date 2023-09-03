@@ -13,7 +13,7 @@ import boto3
 from boto3 import Session
 from botocore.client import BaseClient
 from mypy_boto3_route53 import Route53Client
-from mypy_boto3_route53.type_defs import HostedZoneTypeDef, ResourceRecordSetOutputTypeDef, ResourceRecordSetTypeDef, ResourceRecordTypeDef
+from mypy_boto3_route53.type_defs import HostedZoneTypeDef, ResourceRecordSetPaginatorTypeDef, ResourceRecordSetTypeDef, ResourceRecordTypeDef
 from threading import Lock
 from .internal_types import *
 from .pkg_logging import logger
@@ -170,7 +170,7 @@ def get_all_resource_record_sets(
         zone_id: str,
         *,
         start_record_name: Optional[str]=None,
-      ) -> Generator[ResourceRecordSetOutputTypeDef, None, None]:
+      ) -> Generator[ResourceRecordSetPaginatorTypeDef, None, None]:
     """
     Get all resource record sets for a hosted zone
     """
@@ -191,7 +191,7 @@ def get_resource_record_sets(
         aws: AwsContext,
         zone_id: str,
         record_name: str,
-      ) -> List[ResourceRecordSetOutputTypeDef]:
+      ) -> List[ResourceRecordSetPaginatorTypeDef]:
     """
     Get all resource record sets for a specific name in a hosted zone
     The name can be a fully qualified name or a simple subdomain of the hosted zone.
@@ -212,7 +212,7 @@ def get_resource_record_sets(
         record_short_name, record_parent_name = record_full_name.split(".", 1)
         if record_parent_name != full_hosted_zone_name:
             raise HubError(f"record_name {record_name} is not a simple subdomain of hosted zone {hosted_zone_name}")
-    result: List[ResourceRecordSetOutputTypeDef] = []
+    result: List[ResourceRecordSetPaginatorTypeDef] = []
     for record_set in get_all_resource_record_sets(aws, zone_id, start_record_name=record_full_name):
         if record_set['Name'] != record_full_name:
             break
@@ -221,8 +221,8 @@ def get_resource_record_sets(
     return result
 
 def resource_record_sets_are_equal(
-        rs1: Union[ResourceRecordSetTypeDef, ResourceRecordSetOutputTypeDef],
-        rs2: Union[ResourceRecordSetTypeDef, ResourceRecordSetOutputTypeDef]) -> bool:
+        rs1: Union[ResourceRecordSetTypeDef, ResourceRecordSetPaginatorTypeDef],
+        rs2: Union[ResourceRecordSetTypeDef, ResourceRecordSetPaginatorTypeDef]) -> bool:
     """
     Compare two resource record sets for equality
     """
