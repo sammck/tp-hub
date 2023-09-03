@@ -258,19 +258,19 @@ class HubSettings(BaseSettings):
         """The default name of the Traefik certificate resolver to use for HTTPS/TLS
         routes. Generally, this should be "prod" for production use (real certs),
         and "staging" for testing purposes (untrusted certs).
-        If not provided, "staging" is used."""
+        If not provided, "prod" is used."""
       ))
     """The default name of the Traefik certificate resolver to use for HTTPS/TLS
     routes. Generally, this should be "prod" for production use (real certs),
     and "staging" for testing purposes (untrusted certs).
-    If not provided, "staging" is used."""
+    If not provided, "prod" is used."""
 
     @validator('default_cert_resolver', pre=True, always=True)
     def default_cert_resolver_validator(cls, v, values, **kwargs):
         sname = 'default_cert_resolver'
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
         if v is None:
-            v = "staging"
+            v = "prod"
         if not v in values['allowed_cert_resolvers']:
             raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
         return v
