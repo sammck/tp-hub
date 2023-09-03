@@ -1,4 +1,7 @@
 {
+  "activator.activateOnStart": [
+    "ms-python.python",
+  ],
   "python.defaultInterpreterPath": "${workspaceFolder}/build/.venv/bin/python",
   "python.testing.unittestEnabled": false,
   "python.autoComplete.extraPaths": [
