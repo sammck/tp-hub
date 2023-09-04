@@ -36,6 +36,7 @@ version: "3.3"
 #                             by putting the LAN IP address in each client's /etc/hosts, or by hosting
 #                             a LAN-local DNS server that overrides the public entries.
 #    landashboard    8080   Serves the traefik dashboard on LAN-local http://<any-hostname>:8080.  Requires HTTP basic authentication.
+#    portainerui     9000   Serves the Portainer UI on LAN-local http://<any-hostname>:9000.  Requires Portainer integrated authentication.
 #
 # Externally, this stack serves:
 #    http://${TRAEFIK_DNS_NAME}                      Dashboard (private LAN only)
@@ -112,8 +113,8 @@ services:
       - "--entrypoints.lanweb.address=:80"                                     # Private LAN-only http:// entrypoint. Exposed to LAN.
       - "--entrypoints.lanwebsecure.address=:443"                              # Private https:// entrypoint. Exposed to LAN.
       - "--entrypoints.lanwebsecure.http.tls.certResolver=${DEFAULT_CERT_RESOLVER}"
-                                                                               # Private LAN-only http://<any-host>:8080 entrypoint; used for LAN-local dashboard
-      - "--entrypoints.landashboard.address=:8080"                             # Private LAN-only http://<host>:8080 entrypoint. Exposed to LAN.
+      - "--entrypoints.landashboard.address=:8080"                             # Private LAN-only http://<any-host>:8080 entrypoint. Used for Traefik dashboard. Exposed to LAN.
+      - "--entrypoints.portainerui.address=:9000"                              # Private LAN-only http://<any-host>:9000 entrypoint. Used for Portainer UI. Exposed to LAN.
 
       # "prod" certificate resolver uses real lets-encrypt certificates
       - "--certificatesresolvers.prod.acme.storage=/acme/acme_prod.json"
@@ -157,7 +158,9 @@ services:
       - "80:80"       # Endpoint "lanweb"       -- Private http (exposed only to LAN)
       - "443:443"     # Endpoint "lanwebsecure" -- Private https (exposed only to LAN). self-signed SSL certificate.
       - "8080:8080"   # Endpoint "landashboard" -- Private http (exposed only to LAN) on port 8080. Serves only the Traefik dashboard,
-                      #                            with basic authentication.
+                      #                            with basic authentication middleware.
+      - "9000:9000"   # Endpoint "portainerui"  -- Private http (exposed only to LAN) on port 9000. Serves only the Portainer UI, with
+                      #                            its own authentication.
     volumes:
       - "/etc/localtime:/etc/localtime:ro"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"

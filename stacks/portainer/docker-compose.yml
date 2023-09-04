@@ -37,7 +37,7 @@ version: "3.3"
 #                            The log level for Portainer.  One of "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "PANIC"
 #
 # Entrypoints:
-#    This stack creates a Traefik reverse-proxy with 5 entrypoints:
+#    This stack uses the following Traefik reverse-proxy entrypoints:
 #
 #    Entrypoint      Port   Description
 #    ----------      ----   ---------------------------------
@@ -52,19 +52,22 @@ version: "3.3"
 #                             but must resolve within the LAN to this host's LAN IP address. This can be done
 #                             by putting the LAN IP address in each client's /etc/hosts, or by hosting
 #                             a LAN-local DNS server that overrides the public entries.
-#    landashboard    8080   Serves the traefik dashboard on LAN-local http://<any-hostname>:8080.  Requires HTTP basic authentication.
+#    portainerui     9000   Serves the Portainer UI on LAN-local http://<any-hostname>:9000.
 #
 # Externally, this stack serves:
-#    https://${PORTAINER_DNS_NAME}          Dashboard (private LAN only). Requires a /hosts entry on each client, or a LAN-local DNS server.
+#    https://${PORTAINER_DNS_NAME}          Portainer UI (private LAN only). Requires a /hosts entry on each client, or a LAN-local DNS server.
 #    http://${PORTAINER_DNS_NAME}           Redirects to https:// (private LAN only)
+#    http://<any-host>:9000                 Portainer UI (private LAN only)
 #
-# Portainer is only exposed on the LAN, but it requires a hostname that resolves publicly to this network's publid IP address. This
+# Portainer is only exposed on the LAN, but for HTTPS routes it requires a hostname that resolves publicly to this network's publid IP address. This
 # is the only way to get a valid lets-encrypt certificate for ${PORTAINER_DNS_NAME}. So by default, browser clients
-# will get "404 page not found" when they navigate to the portainer URL. There are 2 ways to make it work:
+# will get "404 page not found" when they navigate to https://${PORTAINER_DNS_NAME}. There are 2 ways to make it work:
 #
 #  1. Add a /etc/hosts entry on each client that points ${PORTAINER_DNS_NAME} to this host's LAN IP address.
 #  2. Run a LAN-local DNS server that overrides the public DNS entries for ${PORTAINER_DNS_NAME} and points them to this host's LAN IP address,
 #     and use a LAN-local DHCP server to configure each client to use the LAN-local DNS server.
+#
+# If this is not feasible, you can still use portainer from inside the LAN without HTTPS by navigating to http://${HUB_LAN_IP}:9000.
 #
 # Prerequisites:
 #   Prerequisites common to all stacks (only done once when traefik is initially set up):
@@ -144,6 +147,11 @@ services:
       - "traefik.http.routers.portainer-http.rule=Host(`${PORTAINER_DNS_NAME}`)"
       - "traefik.http.routers.portainer-http.middlewares=portainer-https"
       - "traefik.http.middlewares.portainer-https.redirectscheme.scheme=https"
+
+      # A router for http://<any-hostname>:9000
+      - "traefik.http.routers.portainer-http-path.entrypoints=portainerui"
+      - "traefik.http.routers.portainer-http-path.rule=HostRegexp(`{host:.+}`)"   # matches any hostname
+
     restart: always
 
 volumes:

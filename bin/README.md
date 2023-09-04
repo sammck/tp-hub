@@ -19,8 +19,6 @@ If run as a command with arguments, activates the environment and then runs the 
 ## install-prereqs
 If needed, installs system prerequesites necessary for launching the hub:
 
-* Installs a Python virtualenv used by this project.
-* installs required Python packages into the virtualenv.
 * Installs Docker.
 * Installs docker-compose.
 * Installs a Docker network "traefik"--used for backend communication between Traefik and reverse-proxied service containers.

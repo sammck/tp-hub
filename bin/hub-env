@@ -87,7 +87,12 @@ if [ -z "$_ABORT" ]; then
 
   # Create a custom prompt string
   # If you like, you can put code in .bashrc to restore PS1 to "$STICKY_PS1" if it is set.
-  export STICKY_PS1="(hub-env) $_OLD_PS1"
+  if [[ "$_OLD_PS1" == *"(hub-env)"* ]]; then
+    # PS1 already contains "(hub-env)" -- do not add it again
+    export STICKY_PS1="$_OLD_PS1"
+  else
+    export STICKY_PS1="(hub-env) $_OLD_PS1"
+  fi
   PS1="$STICKY_PS1"
 fi
 
