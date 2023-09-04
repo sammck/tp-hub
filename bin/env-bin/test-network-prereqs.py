@@ -226,7 +226,7 @@ class App:
         print(file=sys.stderr)
         fqdomains = [ f"{subdomain}.{traefik_dns_domain}" for subdomain in subdomains]
         print(f"{fqdomains} all resolve to {stable_public_ip_address}", file=sys.stderr)
-        print(f"Ports {ports}} are all available for use.", file=sys.stderr)
+        print(f"Ports {ports} are all available for use.", file=sys.stderr)
         print(f"Port forwarding from {stable_public_ip_address}:80 to {lan_ip_addr}:7080 is working.", file=sys.stderr)
         print(f"Port forwarding from {stable_public_ip_address}:443 to {lan_ip_addr}:7443 is working.", file=sys.stderr)
         print(f"DDNS stable public DNS name: {stable_public_dns_name}", file=sys.stderr)

@@ -4,4 +4,6 @@ set -e
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+# rebuild the environment in case configuration has changed
+"$SCRIPT_DIR/hub" build traefik || exit $?
 "$SCRIPT_DIR/traefik-dc" up -d || exit $?

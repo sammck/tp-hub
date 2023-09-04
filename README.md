@@ -282,6 +282,9 @@ you set up in previous steps. To prepare these derived files for use by docker-c
 # if not running in hub-env shell, launch with '~/tp-hub/bin/hub-env'
 hub build
 ```
+> **Note**
+> If you ever change the settings in `config.yml``, either directly or through `hub config set`, you
+> should rebuild the stack configurations with `hub build`.
 
 ## Launch Traefik reverse-proxy
 
@@ -324,21 +327,22 @@ curl http://${HUB_LAN_IP}
 # you will receive 404 page not found, which is expected
 ```
 
-Verify that Traefik is serving LAN-local HTTPS requests (from any host in the LAN):
+Verify that Traefik is serving LAN-local HTTPS requests (from any host in the LAN) with a valid certificate:
 ```bash
-curl -k https://${HUB_LAN_IP}
-# you will receive 404 page not found, which is expected
+curl --resolve traefik.${PARENT_DNS_DOMAIN}:443:${HUB_LAN_IP} https://traefik.${PARENT_DNS_DOMAIN}
+# you will receive 401 Unauthorized, which is expected (dashboard is behind HTTP Basic Authentication)
 ```
 
 Verify that port forwarding from 80 to 7080 is working and Traefik is serving public Internet HTTP requests (from any host with Internet access):
 ```bash
-curl http://ddns.${HUB_LAN_IP}
-# you will receive 404 page not found, which is expected
+curl http://traefik.${PARENT_DNS_DOMAIN}
+# you will receive "Found" due to a 302 redirect to HTTPS, which is expected
 ```
 
-Verify that port forwarding from 443 to 7443 is working and Traefik is serving public Internet HTTPS requests (from any host with Internet access):
+Verify that port forwarding from 443 to 7443 is working and Traefik is serving public Internet HTTPS requests
+with a valid certificate (from any host with Internet access):
 ```bash
-curl -k https://ddns.${HUB_LAN_IP}
+curl https://traefik.${PARENT_DNS_DOMAIN}
 # you will receive 404 page not found, which is expected
 ```
 
@@ -367,39 +371,128 @@ Make a cursory check to see that everything thinks it is running by examining th
 portainer-logs | grep ERR
 ```
 
-Verify that the Portainer Dashboard is functioning by opening a web browser on the hub-host or any other
-host in the LAN and navigating to `http://${HUB_LAN_IP}:9080`, where `${HUB_LAN_IP}` is the stable LAN
+Verify that the Portainer Web UI is functioning by opening a web browser on the hub-host or any other
+host in the LAN and navigating to `http://${HUB_LAN_IP}:9000`, where `${HUB_LAN_IP}` is the stable LAN
 IP address of your hub-host, as described above.
 
 You will be prompted for login credentials.  The username is "admin" and the password is the one you entered
 for the Portainer Web UI in the above steps.
 
-Verify that Traefik is serving LAN-local HTTP requests (from any host in the LAN):
+Verify that Portainer is serving LAN-local HTTPS requests (from any host in the LAN) with a valid certificate:
 ```bash
-curl http://${HUB_LAN_IP}
-# you will receive 404 page not found, which is expected
+curl --resolve portainer.${PARENT_DNS_DOMAIN}:443:${HUB_LAN_IP} https://portainer.${PARENT_DNS_DOMAIN}
+# you will receive A bunch of HTML for the Portainer home page (not logged in)
 ```
 
-Verify that Traefik is serving LAN-local HTTPS requests (from any host in the LAN):
+## Done!
+Congratulations, your `tp-hub` is up and running! Both the Traefik and Portainer stack containers were launched with `restart=always`, so they
+will automatically restart when Docker is restarted or your hub host reboots. From here on, you can manage all of your web service stacks through
+the Portainer UI, which you can browse to (from any client inside the LAN) at `http://${HUB_LAN_IP}:9000`. If your client can discover
+the hub host via Bonjour or mDNS, then you can use `http://${HUB_HOSTNAME}:9000`  or `http://${HUB_HOSTNAME}.local:9000`.
+
+Proceed to the next section to deploy your first example web service.
+
+Adding an example "whoami" web service
+=====
+
+In this section, you will deploy a simple web service `whoami`. It simply accepts HTTP get requests and responds to them with plain text
+describing all of the received HTTP headers, the URL path, Traefik route, etc. It will be configured to serve multiple entry points:
+
+  - `http://whoami.${PARENT_DNS_DOMAIN}`        (both on private LAN and public Internet)
+  - `https://whoami.${PARENT_DNS_DOMAIN}`       (both on private LAN and public Internet)
+  - `http://hub.${PARENT_DNS_DOMAIN}/whoami`    (both on private LAN and public internet)
+  - `https://hub.${PARENT_DNS_DOMAIN}/whoami`   (both on private LAN and public internet)
+  - `http://${HUB_LAN_IP}/whoami`               (Private LAN only)
+  - `http://${HUB_HOSTNAME}/whoami`             (Private LAN only)
+  - `http://${HUB_HOSTNAME}.local/whoami`       (Private LAN only) (for Mac clients)
+  - `http://localhost/whoami`                   (Private LAN only) (for clients on hub host itself)
+  - `http://127.0.0.1/whoami`                   (Private LAN only) (for clients on hub host itself)
+
+## Make sure any new DNS names your stack will serve have been created
+If your stack will run on a DNS name not used by an existing stack, then you need to create a new DNS name *before* deploying the
+stack. In the case of this example, it will serve on `whoami.${PARENT_DNS_DOMAIN}`. We already created that record while we
+were setting up the other records for Traefik and Portainer. However, for many new stacks you will have to create new DNS records; e.g.,
+
+```
+CNAME      whoami.${PARENT_DNS_DOMAIN}.com            ==> ddns.${PARENT_DNS_DOMAIN}.com
+```
+If you are using AWS route53, and have credentials configured in  `~/.aws/credentials`, you can use the following commands to create these records:
+
 ```bash
-curl -k https://${HUB_LAN_IP}
-# you will receive 404 page not found, which is expected
+# if not running in hub-env shell, launch with './bin/hub-env'
+hub cloud dns create-name whoami
 ```
 
-Verify that port forwarding from 80 to 7080 is working and Traefik is serving public Internet HTTP requests (from any host with Internet access):
-```bash
-curl http://ddns.${HUB_LAN_IP}
-# you will receive 404 page not found, which is expected
-```
+## Grab the docker-compose.yml for the example service
+The only file necessary to install this stack is the docker-compose.yml file in this project at `~/tp-hub/examples/whoami/docker-compose.yml`.
 
-Verify that port forwarding from 443 to 7443 is working and Traefik is serving public Internet HTTPS requests (from any host with Internet access):
-```bash
-curl -k https://ddns.${HUB_LAN_IP}
-# you will receive 404 page not found, which is expected
-```
+The easiest way to install it into Portainer is to copy it into the clipboard of the browser client on the private LAN that you will be using to
+access Portainer.  Do that in whatever way is easiest for you. E.g., you can browse to https://github.com/sammck/tp-hub/blob/main/examples/whoami/docker-compose.yml and copy it into the clipboard from there 
+
+## Log into Portainer
+
+On a web browser in the private LAN, navigate to `http://${HUB_LAN_IP}:9000`, `http://${HUB_HOSTNAME}:9000`,  or `http://${HUB_HOSTNAME}.local:9000`
+as described above.
+
+If prompted, log into Portainer with username 'admin' and the Portainer password you configured during setup.
+
+## Navigate to the Portainer "stacks" page
+
+From the Portainer Home page, click on the big box labeled "${HUB_HOSTNAME} portainer agent". This will move you into the Environment page
+for the hub host (Portainer is capable of managing multiple Docker host machines, but tp-hub is set up to only manage a single Environment
+on the same host that Portainer runs on).
+
+Click on the box that says "Stacks". This will take to to the Page that lists all of the docker-compose stacks that exist on
+your hub.  Two of the stacks--"traefik" and "portainer", were the stacks that we created directly outside of Portainer; they run Traefik
+and Portainer themselves. Because they were created outside of Portainer, they are marked as Limited Control. You should not need to
+mess with them ever from within Portainer.
+
+Any stacks listed with Total Control are those you created with Portainer. If this is your first time using Portainer, there should not
+be any such stacks listed.
+
+## Create a new stack
+Click on the button labelled "+ Add Stack".  This will take you to the "Create stack" page.
+
+Give your stack the name "whoami". This is the name you will see in the listed stacks page, and it also becomes the project
+name for docker-compose; it is used as a prefix for created docker container names, etc.
+
+We are going to directly paste in docker-compose.yml content, so click on "Web editor".
+
+Click inside the Web editor textbox and paste the content of the whoami example docker-compose.yml file.
+
+Note: below the textbox, you may wish to click on "+ Add an Environment Variable" to define docker-compose environment variables that
+will be expanded when the docker-compose.yml file is interpreted. However, for this example, most of the appropriate
+variables have been injected into the Portainer runtime environment by tp-hub, so this stack will run perfectly without defining
+any additional values.
+
+Finally, click on "Deploy the stack". Within a few seconds it will be up and running and actively serving requests. You
+will be taken to the "Stack details" page, where you can inspect the containers within the stack, view logs, resource usage
+graphs, and even open a Web-UI terminal into any container.
+
+## Use your new web service
+
+In a browser on any host with internet access, navigate to one of:
+
+  - `http://whoami.${PARENT_DNS_DOMAIN}`        (both on private LAN and public Internet)
+  - `https://whoami.${PARENT_DNS_DOMAIN}`       (both on private LAN and public Internet)
+  - `http://hub.${PARENT_DNS_DOMAIN}/whoami`    (both on private LAN and public internet)
+  - `https://hub.${PARENT_DNS_DOMAIN}/whoami`   (both on private LAN and public internet)
+
+In a browser on any host inside the private LAN, navigate to:
+
+  - `http://${HUB_LAN_IP}/whoami`               (Private LAN only)
+  - `http://${HUB_HOSTNAME}/whoami`             (Private LAN only)
+  - `http://${HUB_HOSTNAME}.local/whoami`       (Private LAN only) (for Mac clients)
+
+Congratulations! You've just deployed a tp-hub web service stack and used it from the internet and your private LAN, with valid HTTPS certificates.
+
+Since the docker-compose service in your `whoami` stack was define with `restart: always`, it will automatically restart when Docker is restarted
+or the hub host is rebooted.
+
+If you wish to remove the stack, you can click on the "Delete this stack" button in the "Stack details" page. Traeffik will
+automatically detect the removal of containers and remove the reverse-proxy routes associated with them.
 
 
-```
 Known issues and limitations
 ----------------------------
 

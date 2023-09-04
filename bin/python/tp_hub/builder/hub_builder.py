@@ -9,6 +9,7 @@ Builder tools for traefik
 """
 
 import os
+from pathlib import Path
 
 from ..internal_types import *
 from ..pkg_logging import logger
@@ -20,4 +21,5 @@ def build_hub(settings: Optional[HubSettings]=None):
     logger.info("Building Hub")
     build_traefik(settings=settings)
     build_portainer(settings=settings)
+
     logger.info("Hub build complete")

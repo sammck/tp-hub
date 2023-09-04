@@ -4,4 +4,7 @@ set -e
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+# rebuild the environment in case configuration has changed
+"$SCRIPT_DIR/hub" build portainer || exit $?
+
 "$SCRIPT_DIR/portainer-dc" up -d || exit $?
