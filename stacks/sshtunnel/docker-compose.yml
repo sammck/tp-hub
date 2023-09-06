@@ -1,0 +1,25 @@
+version: "3.3"
+services:
+  sshtunnel:
+    image: ssh-client
+    build: ./ssh-client
+    container_name: sshtunnel
+    volumes:
+      - ssh-state:/ssh-state
+      - ./ssh-keys/:/ssh-keys/:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - "-o"
+      - "ExitOnForwardFailure=yes"
+      - "-R"
+      - "8080:host.docker.internal:7080"
+      - "-R"
+      - "8443:host.docker.internal:7443"
+      - "-N"
+      - "ubuntu@port-tunnel.${PARENT_DNS_DOMAIN}"
+      - "--"
+    restart: unless-stopped
+
+volumes:
+  ssh-state:

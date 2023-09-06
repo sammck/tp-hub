@@ -60,8 +60,18 @@ restarted after host reboot or restart of the Docker daemon.
 
 ### Prerequisites
 
-  - **Ubuntu/Debian**: The bootstrapping code provided here must be running an Ubuntu/Debian variant. The hub has only been tested on Ubuntu 22.04. However, if you skip auto-provisioning and manually install docker and docker-compose, the hub may well work on any Linux variant.
+  - **Ubuntu/Debian**: The bootstrapping code provided here must be running an Ubuntu/Debian variant. The hub has only been tested
+    on Ubuntu 22.04. However, if you skip auto-provisioning and manually install docker and docker-compose, the hub may well work
+    on any Linux variant.
   - **Python 3.8+** is required by the bootstrapping scripts.
+  - The ability to forward ports 80 and 443 on a public IP address to ports 7080 and 7443, respectively, on the
+    tp-hub host. Generally, this means one of:
+    - A gateway router or VPN that you manage and which supports port forwarding (with port remapping), and a way to make the
+      tp-hub host have a fixed LAN IP address (either with a static IP address or via DHCP address reservation). This is the typical
+      solution for home networks, and the one described here, but might not be possible in certain ISP environments (e.g., running behind a 5G hotspot, or when you do not manage the network you are running in). 
+    - A port forwarding service or custom solution that provides an external public IP address and forwards ports 80 and 443 to a reverse tunneling agent running on the tp-hub host, which forwards connections to localhost ports 7080 and 7443, respectively. In this case, the public IP address used for outbound connections will be different than the public IP address used for inbound connections. Such a solution
+    can be made to work without a stable LAN IP address or network public address, and without administrative control over the local network. It can even work when the tp-hub host machine is moved between multiple networks (i.e., a mobile tp-hub). Setting up such a port forwarding solution is not described here, but once it is set up, tp-hub can be configured to work with it by pointing `ddns.{PARENT_DOMAIN_NAME}` at the port-forwarder's public IP address.  For a free solution, check out [portmap.io](https://portmap.io/).
+      
 
 Installation
 =====
@@ -93,12 +103,37 @@ handy commands to easily create new DNS names within ${PARENT_DNS_DOMAIN}
 Since typical residential ISPs may change your public IP address periodically, if you are running in a residential LAN, it is
 usually necessary to involve Dynamic DNS (DDNS) to provide a stable name through which your
 network's public IP address can be resolved. This requires running a DDNS agent inside the network
-that periodically updates a public DNS server if the public IP address changes. Many gateway routers (e.g., eero) have a DDNS agent built-in. Or you can run a DDNS agent on this or another host inside your LAN. Your DDNS provider will provide you with an obscure but unique and stable (as long as you stay with the DDNS provider) DNS name for your gateway's public IP address; e.g., "g1234567.eero.online".
+that periodically updates a public DNS server if the public IP address changes. Many gateway routers (e.g., eero) have a DDNS agent built-in. Or you can run a DDNS agent on this or another host inside your LAN. Your DDNS provider will provide you with an obscure but unique and stable (as long as you stay with the DDNS provider) DNS name `${DDNS_OBSCURE_NAME}` for your gateway's public IP address; e.g., "g1234567.eero.online".
 
-## Create a master CNAME record ddns.${PARENT_DNS_DOMAIN} that will always resolve to your public IP address
+### Duck DNS
+If you do not already have a DDNS solution, this project includes a simple docker-compose stack that will run a DDNS agent for
+[Duck DNS](https://www.duckdns.org/). Duck DNS is a completely free, reliable and reputable DDNS service hosted on AWS. To use it:
+
+  - Create an account and log in at https://www.duckdns.org/
+  - Click "add domain" to create a unique DNS name `${DUCKDNS_SUBDOMAIN}.duckdns.org`.
+  - Duck DNS will provide you with a secret token `${DUCKDNS_TOKEN}` which you will provide to the `duckdns` docker_compose stack
+    so it can authenticate.
+  - Run the following commands to launch the Duck DNS agent (substituting values from above):
+    ```bash
+    cd ~/tp-hub/stacks/duckdns
+    echo "DUCKDNS_SUBDOMAIN=${DUCKDNS_SUBDOMAIN}" > .env
+    echo "DUCKDNS_TOKEN=${DUCKDNS_TOKEN}" >> .env
+    chmod 600 .env
+    docker-compose up -d
+    ```
+Once you have launched the `duckdns` stack, you can forget about it. It will automatically restart when docker is restarted or
+the hub host is rebooted. Your `${DDNS_OBSCURE_NAME}` is `${DUCKDNS_SUBDOMAIN}.duckdns.org`.
+
+### Networks with static public IP addreses
+If your network is behind a public IP address that will never change (e.g., an EC2 Elastic IP), then you can dispense with Dynamic DNS. Instead
+just create an arbitrary DNS CNAME or A record that will always resolve to your network's ingress public IP Address. This DNS name
+will be your `${DDNS_OBSCURE_NAME}` for the remainder of these instructions.
+
+## Create a master CNAME record `ddns.${PARENT_DNS_DOMAIN}` that will always resolve to your public IP address
 The first record you should create in your public domain is a CNAME record `ddns.${PARENT_DNS_DOMAIN}` that points to the
-obscure DNS name given to you by your DDNS provider (see above). That makes an easy-to-remember DNS name for your
-network's public IP address, and ensures that if your DDNS obscure name ever changes, you will only have to update this one CNAME record to be back in business.
+`${DDNS_OBSCURE_NAME}` given to you by your DDNS provider (see above). That makes an easy-to-remember DNS name for your
+network's public IP address, and ensures that if your DDNS obscure name ever changes, you will only have to update this one
+CNAME record to be back in business.
 
 ## Copy this project directory tree onto the hub host machine
 A copy of this directory tree must be placed on the host machine. You can do this in several ways; for example:
