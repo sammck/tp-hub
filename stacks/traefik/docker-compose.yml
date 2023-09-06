@@ -184,7 +184,7 @@ services:
 
       # A middleware that strips a /traefik prefix from the URL path before forwarding the request
       # to the traefik dashboard. This allows the dashboard to be served on a shared hostname.
-      # Note that any route that servers the traefik dashboard also has to accept the /api prefix
+      # Note that any route that serves the traefik dashboard also has to accept the /api prefix
       # without stripping it; the dashboard generates and invokes URLs that include the /api prefix.
       # There is no easy way to move /api to another path.
       - "traefik.http.middlewares.traefik-stripprefix.stripprefix.prefixes=/traefik"
