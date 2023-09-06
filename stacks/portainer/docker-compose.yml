@@ -123,6 +123,7 @@ services:
       # on first launch, or when the portainer_data volume is wiped.  It is meant to be changed immediately
       # after first login.  It is not used after that.
       - "--admin-password=${PORTAINER_INITIAL_PASSWORD_HASH:-}"
+      - "--base-url=/portainer"                    # move into a subpath so it can share the same domain as other services
     ports:
       - 8000:8000    # SSH tunnel entrypoint; used by edge portainer agents to connect to portainer server
     volumes:
@@ -137,20 +138,46 @@ services:
       - "traefik.enable=true"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"     # Port 9000 is reverse-proxied
 
-      # A router for https://${PORTAINER_DNS_NAME}
-      - "traefik.http.routers.portainer.entrypoints=lanwebsecure"
-      - "traefik.http.routers.portainer.tls.certresolver=${PORTAINER_CERT_RESOLVER}"
-      - "traefik.http.routers.portainer.rule=Host(`${PORTAINER_DNS_NAME}`)"
+      # A middleware that will redirect http(s)://<host-and-port>/ to http(s)://<host-and-port>/portainer/
+      - "traefik.http.middlewares.portainer-path-redirect.redirectregex.regex=^(https?)://([^/]*)(/?)$$"
+      - "traefik.http.middlewares.portainer-path-redirect.redirectregex.replacement=$${1}://$${2}/portainer$${3}"
 
-      # A router for http://${PORTAINER_DNS_NAME} that redirects to https
+      # A middleware that will strip the /portainer prefix from the request before forwarding to portainer
+      - "traefik.http.middlewares.portainer-stripprefix.stripprefix.prefixes=/portainer"
+
+      # -----------------------------------------
+      # A router for https://${PORTAINER_DNS_NAME} in the local LAN entrypoint
+      - "traefik.http.routers.portainer-https-shared-private.entrypoints=lanwebsecure"
+      - "traefik.http.routers.portainer-https-shared-private.tls.certresolver=${PORTAINER_CERT_RESOLVER}"
+      - "traefik.http.routers.portainer-https-shared-private.rule=Host(`${PORTAINER_DNS_NAME}`)"
+      # Redirect / to /portainer and strip prefix before forwarding to portainer
+      - "traefik.http.routers.portainer-https-shared-private.middlewares=portainer-path-redirect,portainer-stripprefix"
+      # -----------------------------------------
+      # A router for http://${PORTAINER_DNS_NAME} that redirects http to to https, on the local LAN entrypoint
       - "traefik.http.routers.portainer-http.entrypoints=lanweb"
       - "traefik.http.routers.portainer-http.rule=Host(`${PORTAINER_DNS_NAME}`)"
       - "traefik.http.routers.portainer-http.middlewares=portainer-https"
       - "traefik.http.middlewares.portainer-https.redirectscheme.scheme=https"
-
+      # -----------------------------------------
       # A router for http://<any-hostname>:9000
-      - "traefik.http.routers.portainer-http-path.entrypoints=portainerui"
-      - "traefik.http.routers.portainer-http-path.rule=HostRegexp(`{host:.+}`)"   # matches any hostname
+      - "traefik.http.routers.portainer-http-9000.entrypoints=portainerui"
+      - "traefik.http.routers.portainer-http-9000.rule=HostRegexp(`{host:.+}`)"   # matches any hostname
+      # Redirect / to /portainer and strip prefix before forwarding to portainer
+      - "traefik.http.routers.portainer-http-9000.middlewares=portainer-path-redirect,portainer-stripprefix"
+      # -----------------------------------------
+      # A router for https://${SHARED_APP_DNS_NAME}/portainer, on the local LAN entrypointy
+      - "traefik.http.routers.portainer-https-shared-private-path.entrypoints=lanwebsecure"
+      - "traefik.http.routers.portainer-https-shared-private-path.tls.certresolver=${SHARED_APP_CERT_RESOLVER}"
+      - "traefik.http.routers.portainer-https-shared-private-path.rule=Host(`${SHARED_APP_DNS_NAME}`) && PathPrefix(`/portainer`)"
+      # strip prefix before forwarding to portainer
+      - "traefik.http.routers.portainer-https-shared-private-path.middlewares=portainer-stripprefix"
+      # -----------------------------------------
+      # A router for http://<common-lan-local-hostname>/portainer, on the local LAN entrypoint only
+      - "traefik.http.routers.portainer-http-private-path.entrypoints=lanweb"
+      - "traefik.http.routers.portainer-http-private-path.rule=Host(`${SHARED_APP_DNS_NAME}`,`${HUB_HOSTNAME}`,`${HUB_HOSTNAME2}`,`${HUB_LAN_IP}`,`localhost`,`127.0.0.1`) && PathPrefix(`/portainer`)"
+      # strip prefix before forwarding to portainer
+      - "traefik.http.routers.portainer-http-private-path.middlewares=portainer-stripprefix"
+      # -----------------------------------------
 
     restart: always
 
