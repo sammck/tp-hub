@@ -68,15 +68,49 @@ version: "3.3"
 #                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
 #                               environment, and does not need to be added to launch environment variables.
 #
+#    SHARED_APP_DNS_NAME     The fully qualified public DNS domain that the public/private shared apps will run on.
+#                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
+#                               environment, and does not need to be added to launch environment variables.
+#
+#    SHARED_APP_CERT_RESOLVER   
+#                            "prod" or "staging".  The certificate resolver to use for ${SHARED_APP_DNS_NAME}
+#                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
+#                               environment, and does not need to be added to launch environment variables.
+#
+#    SHARED_APP_DEFAULT_PATH
+#                            The hostname-relative URL path (e.g., '/whoami') to redirect to for navigations to
+#                                the root path of ${SHARED_APP_DNS_NAME}.
+#                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
+#                               environment, and does not need to be added to launch environment variables.
+#
+#    SHARED_LAN_APP_DNS_NAME 
+#                            The fully qualified public DNS domain that the private-only shared apps will run on.
+#                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
+#                               environment, and does not need to be added to launch environment variables.
+#
+#    SHARED_LAN_APP_CERT_RESOLVER
+#                            "prod" or "staging".  The certificate resolver to use for ${SHARED_LAN_APP_DNS_NAME}
+#                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
+#                               environment, and does not need to be added to launch environment variables.
+#
+#    SHARED_LAN_APP_DEFAULT_PATH
+#                            The hostname-relative URL path (e.g., '/whoami') to redirect to for navigations to
+#                                the root path of ${SHARED_LAN_APP_DNS_NAME}.
+#                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
+#                               environment, and does not need to be added to launch environment variables.
+#
 # This stack serves:
 #    http://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}          (public internet or private LAN)  (hostname based)
 #    https://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}         (public internet or private LAN)  (hostname based)
 #    http://${SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}        (public internet or private LAN)  (path-based, handled by <common-lan-local-hostname> router; see below)
 #    https://${SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}       (public internet or private LAN)  (path-based)
+#    http://${SHARED_LAN_APP_DNS_NAME}/${SUBDOMAIN:-whoami}    (private LAN)                     (path-based, handled by <common-lan-local-hostname> router; see below)
+#    https://${SHARED_LAN_APP_DNS_NAME}/${SUBDOMAIN:-whoami}   (private LAN only)                (path-based)
 #    http://<common-lan-local-hostname>/${SUBDOMAIN:-whoami}   (private LAN only)                (path-based, multiple hostnames accepted; see below)
 #
 #    Where <common-lan-local-hostname> is one of:
 #       ${SHARED_APP_DNS_NAME}
+#       ${SHARED_LAN_APP_DNS_NAME}
 #       ${HUB_HOSTNAME}
 #       ${HUB_HOSTNAME2}
 #       ${HUB_LAN_IP}
@@ -202,11 +236,21 @@ services:
       # -----------------------------------------
       # A router for http://<common-lan-local-hostname>/${SUBDOMAIN:-whoami}, on the local LAN entrypoint only
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.entrypoints=lanweb"
-      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.rule=Host(`${SHARED_APP_DNS_NAME}`,`${HUB_HOSTNAME}`,`${HUB_HOSTNAME2}`,`${HUB_LAN_IP}`,`localhost`,`127.0.0.1`) && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.rule=Host(`${SHARED_APP_DNS_NAME}`,`${SHARED_LAN_APP_DNS_NAME}`, `${HUB_HOSTNAME}`,`${HUB_HOSTNAME2}`,`${HUB_LAN_IP}`,`localhost`,`127.0.0.1`) && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
       # Following middleware will add a request header that will be displayed by whoami to show route configuration
       - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-http-private-path-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanweb, router=${SUBDOMAIN:-whoami}-http-private-path"
       # Strip the prefix and add an X-Route-Info header
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.middlewares=${SUBDOMAIN:-whoami}-strip-prefix,${SUBDOMAIN:-whoami}-http-private-path-headers"
+
+      # -----------------------------------------
+      # A router for https://${SHARED_LAN_APP_DNS_NAME}/${SUBDOMAIN:-whoami}, on the local LAN entrypoint only
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-lan-private-path.entrypoints=lanwebsecure"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-lan-private-path.tls.certresolver=${SHARED_LAN_APP_CERT_RESOLVER}"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-lan-private-path.rule=Host(`${SHARED_LAN_APP_DNS_NAME}`) && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
+      # Following middleware will add a request header that will be displayed by whoami to show route configuration
+      - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-https-shared-lan-private-path-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanwebsecure, cert_resolver=${SHARED_LAN_APP_CERT_RESOLVER}, router=${SUBDOMAIN:-whoami}-https-shared-lan-private-path"
+      # Strip the prefix and add an X-Route-Info header
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-lan-private-path.middlewares=${SUBDOMAIN:-whoami}-strip-prefix,${SUBDOMAIN:-whoami}-https-shared-lan-private-path-headers"
       # -----------------------------------------
 
 networks:

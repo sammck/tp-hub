@@ -586,6 +586,94 @@ class HubSettings(BaseSettings):
             raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
         return v
 
+    shared_app_default_path: str = Field(default=None, description=usl(
+        """The URL path to redirect to for the ambiguous root path ('/') of the shared app. This allows
+          you to pick one app that is the default for f"http(s)://{config.shared_app_dns_name}".
+          By default this is "/whoami", which makes `whoami` the default service to use."""
+      ))
+    """The URL path to redirect to for the ambiguous root path ('/') of the shared app. This allows
+      you to pick one app that is the default for f"http(s)://{config.shared_app_dns_name}".
+      By default this is "/whoami", which makes `whoami` the default service to use."""
+
+    @validator('shared_app_default_path', pre=True, always=True)
+    def shared_app_default_path_validator(cls, v, values, **kwargs):
+        sname = 'shared_app_default_path'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = '/whoami'
+        if not v.startswith('/'):
+            v = f"/{v}"
+        if v == '/':
+            raise HubConfigError(f"Setting {sname}={v!r} must not be the root path ('/'); edit config.yml")
+        return v
+
+    shared_lan_app_dns_name: str = Field(default=None, description=usl(
+        """The DNS name to use for general-purpose path-routed web services created by Portainer that are intended for LAN-only use.
+          this allows multiple simple services to share a single provisioned DNS name and certificate
+          if they can be routed with a traefik Path or PathPrefix rule. If this is a simple subdomain with no dots,
+          it will be prepended to the value of parent_dns_domain to form the full DNS name. The default value is f"lan{config.shared_app_dns_name}"."""
+      ))
+    """The DNS name to use for general-purpose path-routed web services created by Portainer that are intended for LAN-only use.
+      this allows multiple simple services to share a single provisioned DNS name and certificate
+      if they can be routed with a traefik Path or PathPrefix rule. If this is a simple subdomain with no dots,
+      it will be prepended to the value of parent_dns_domain to form the full DNS name. The default value is f"lan{config.shared_app_dns_name}"."""
+
+    @validator('shared_lan_app_dns_name', pre=True, always=True)
+    def shared_lan_app_dns_name_validator(cls, v, values, **kwargs):
+        sname = 'shared_lan_app_dns_name'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = f"lan{values['shared_app_dns_name']}"
+        if '.' not in v:
+            v = f"{v}.{values['parent_dns_domain']}"
+        if not is_valid_dns_name(v):
+            raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name or simple subdomain; edit config.yml")
+        return v
+
+    shared_lan_app_cert_resolver: str = Field(default=None, description=usl(
+        """The default name of the Traefik certificate resolver to use for HTTPS/TLS
+           routes using the shared LAN app DNS name. Generally, this should be "prod"
+           once the shared LAN app DNS route has been validated, or "staging"
+           for testing purposes (untrusted certs). If not provided, the value of
+           shared_app_cert_resolver is used."""
+      ))
+    """The default name of the Traefik certificate resolver to use for HTTPS/TLS
+       routes using the shared app DNS name. Generally, this should be "prod"
+       once the shared app DNS route has been validated, or "staging"
+       for testing purposes (untrusted certs). If not provided, the value of
+       default_cert_resolver is used."""
+
+    @validator('shared_lan_app_cert_resolver', pre=True, always=True)
+    def shared_lan_app_cert_resolver_validator(cls, v, values, **kwargs):
+        sname = 'shared_lan_app_cert_resolver'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = values['shared_app_cert_resolver']
+        if not v in values['allowed_cert_resolvers']:
+            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
+        return v
+
+    shared_lan_app_default_path: str = Field(default=None, description=usl(
+        """The URL path to redirect to for the ambiguous root path ('/') of the shared LAN app. This allows
+          you to pick one app that is the default for f"http(s)://{config.shared_lan_app_dns_name}".
+          By default this is config.shared_app_default_path."""
+      ))
+    """The URL path to redirect to for the ambiguous root path ('/') of the shared LAN app. This allows
+      you to pick one app that is the default for f"http(s)://{config.shared_lan_app_dns_name}".
+      By default this is config.shared_app_default_path."""
+
+    @validator('shared_lan_app_default_path', pre=True, always=True)
+    def shared_lan_app_default_path_validator(cls, v, values, **kwargs):
+        sname = 'shared_lan_app_default_path'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = values['shared_app_default_path']
+        if not v.startswith('/'):
+            v = f"/{v}"
+        if v == '/':
+            raise HubConfigError(f"Setting {sname}={v!r} must not be the root path ('/'); edit config.yml")
+        return v
+
     @classmethod    
     def _validate_env_dict(cls, field_name: str, v, values, base_env: Optional[Dict[str, str]]=None, **kwargs) -> Dict[str, str]:
         logger.debug(f"{field_name}_validator: v={v}, values={values}, kwargs={kwargs}")
@@ -670,6 +758,10 @@ class HubSettings(BaseSettings):
                 DEFAULT_CERT_RESOLVER           config.default_cert_resolver
                 SHARED_APP_DNS_NAME             config.shared_app_dns_name
                 SHARED_APP_CERT_RESOLVER        config.shared_app_cert_resolver
+                SHARED_APP_DEFAULT_PATH         config.shared_app_default_path
+                SHARED_LAN_APP_DNS_NAME         config.shared_lan_app_dns_name
+                SHARED_LAN_APP_CERT_RESOLVER    config.shared_lan_app_cert_resolver
+                SHARED_LAN_APP_DEFAULT_PATH     config.shared_lan_app_default_path
                 HUB_HOSTNAME                    The local hostname of this host
                 HUB_HOSTNAME2                   "${HUB_HOSTNAME}.local"
                 HUB_LAN_IP                      The LAN IP address of this host
@@ -687,6 +779,10 @@ class HubSettings(BaseSettings):
             DEFAULT_CERT_RESOLVER           config.default_cert_resolver
             SHARED_APP_DNS_NAME             config.shared_app_dns_name
             SHARED_APP_CERT_RESOLVER        config.shared_app_cert_resolver
+            SHARED_APP_DEFAULT_PATH         config.shared_app_default_path
+            SHARED_LAN_APP_DNS_NAME         config.shared_lan_app_dns_name
+            SHARED_LAN_APP_CERT_RESOLVER    config.shared_lan_app_cert_resolver
+            SHARED_LAN_APP_DEFAULT_PATH     config.shared_lan_app_default_path
             HUB_HOSTNAME                    The local hostname of this host
             HUB_HOSTNAME2                   "${HUB_HOSTNAME}.local"
             HUB_LAN_IP                      The LAN IP address of this host
@@ -701,6 +797,10 @@ class HubSettings(BaseSettings):
         cls._set_default_env_var(v, 'DEFAULT_CERT_RESOLVER', values['default_cert_resolver'])
         cls._set_default_env_var(v, 'SHARED_APP_DNS_NAME', values['shared_app_dns_name'])
         cls._set_default_env_var(v, 'SHARED_APP_CERT_RESOLVER', values['shared_app_cert_resolver'])
+        cls._set_default_env_var(v, 'SHARED_APP_DEFAULT_PATH', values['shared_app_default_path'])
+        cls._set_default_env_var(v, 'SHARED_LAN_APP_DNS_NAME', values['shared_lan_app_dns_name'])
+        cls._set_default_env_var(v, 'SHARED_LAN_APP_CERT_RESOLVER', values['shared_lan_app_cert_resolver'])
+        cls._set_default_env_var(v, 'SHARED_LAN_APP_DEFAULT_PATH', values['shared_lan_app_default_path'])
         cls._set_default_env_var(v, 'HUB_HOSTNAME', lambda: gethostname())
         cls._set_default_env_var(v, 'HUB_HOSTNAME2', f"{v['HUB_HOSTNAME']}.local")
         cls._set_default_env_var(v, 'HUB_LAN_IP', lambda: get_lan_ip_address())

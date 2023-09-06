@@ -165,19 +165,6 @@ services:
       # Redirect / to /portainer and strip prefix before forwarding to portainer
       - "traefik.http.routers.portainer-http-9000.middlewares=portainer-path-redirect,portainer-stripprefix"
       # -----------------------------------------
-      # A router for https://${SHARED_APP_DNS_NAME}/portainer, on the local LAN entrypointy
-      - "traefik.http.routers.portainer-https-shared-private-path.entrypoints=lanwebsecure"
-      - "traefik.http.routers.portainer-https-shared-private-path.tls.certresolver=${SHARED_APP_CERT_RESOLVER}"
-      - "traefik.http.routers.portainer-https-shared-private-path.rule=Host(`${SHARED_APP_DNS_NAME}`) && PathPrefix(`/portainer`)"
-      # strip prefix before forwarding to portainer
-      - "traefik.http.routers.portainer-https-shared-private-path.middlewares=portainer-stripprefix"
-      # -----------------------------------------
-      # A router for http://<common-lan-local-hostname>/portainer, on the local LAN entrypoint only
-      - "traefik.http.routers.portainer-http-private-path.entrypoints=lanweb"
-      - "traefik.http.routers.portainer-http-private-path.rule=Host(`${SHARED_APP_DNS_NAME}`,`${HUB_HOSTNAME}`,`${HUB_HOSTNAME2}`,`${HUB_LAN_IP}`,`localhost`,`127.0.0.1`) && PathPrefix(`/portainer`)"
-      # strip prefix before forwarding to portainer
-      - "traefik.http.routers.portainer-http-private-path.middlewares=portainer-stripprefix"
-      # -----------------------------------------
 
     restart: always
 
