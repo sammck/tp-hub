@@ -107,22 +107,15 @@ that periodically updates a public DNS server if the public IP address changes. 
 
 ### Duck DNS
 If you do not already have a DDNS solution, this project includes a simple docker-compose stack that will run a DDNS agent for
-[Duck DNS](https://www.duckdns.org/). Duck DNS is a completely free, reliable and reputable DDNS service hosted on AWS. To use it:
+[Duck DNS](https://www.duckdns.org/). Duck DNS is a completely free, reliable and reputable DDNS service hosted on AWS. Deatails on
+how to deploy the Duck DNS agent for tp-hub are provided [here](stacks/duckdns).
 
-  - Create an account and log in at https://www.duckdns.org/
-  - Click "add domain" to create a unique DNS name `${DUCKDNS_SUBDOMAIN}.duckdns.org`.
-  - Duck DNS will provide you with a secret token `${DUCKDNS_TOKEN}` which you will provide to the `duckdns` docker_compose stack
-    so it can authenticate.
-  - Run the following commands to launch the Duck DNS agent (substituting values from above):
-    ```bash
-    cd ~/tp-hub/stacks/duckdns
-    echo "DUCKDNS_SUBDOMAIN=${DUCKDNS_SUBDOMAIN}" > .env
-    echo "DUCKDNS_TOKEN=${DUCKDNS_TOKEN}" >> .env
-    chmod 600 .env
-    docker-compose up -d
-    ```
-Once you have launched the `duckdns` stack, you can forget about it. It will automatically restart when docker is restarted or
-the hub host is rebooted. Your `${DDNS_OBSCURE_NAME}` is `${DUCKDNS_SUBDOMAIN}.duckdns.org`.
+### Networks without port forwarding
+If your gateway router does not support support port forwarding, or you do not have administrative control of
+your gateway route–e.g., if you are in a VPN or a corporate or academic LAN, are using a 5G Internet gateway, or are behind a 3rd-party
+WiFi hotspot–then you will need an alternate solution to maintain a discoverable public IP address and forward
+public ports 80 and 443 to tp-hub. One solution is to use ssh's reverse port tunneling capability in cooperation with a small
+cloud host.  Details on how to make that work in tp-hub are provided [here](stacks/sshtunnel).
 
 ### Networks with static public IP addreses
 If your network is behind a public IP address that will never change (e.g., an EC2 Elastic IP), then you can dispense with Dynamic DNS. Instead
