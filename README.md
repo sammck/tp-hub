@@ -55,7 +55,7 @@ There are two primary docker-compose stacks that are directly configured and lau
   are separated so that in complex environments, a single Portainer instance can manage Docker stacks on multiple host
   machines; for our purposes only one Portainer Agent is used and it is on the same host as Portainer itself
 
-All of the containers in the two primary stacks are launched wi `restart: always` so they will automatically be
+All of the containers in the two primary stacks are launched with `restart: always` so they will automatically be
 restarted after host reboot or restart of the Docker daemon.
 
 ### Prerequisites
@@ -70,7 +70,7 @@ restarted after host reboot or restart of the Docker daemon.
       tp-hub host have a fixed LAN IP address (either with a static IP address or via DHCP address reservation). This is the typical
       solution for home networks, and the one described here, but might not be possible in certain ISP environments (e.g., running behind a 5G hotspot, or when you do not manage the network you are running in). 
     - A port forwarding service or custom solution that provides an external public IP address and forwards ports 80 and 443 to a reverse tunneling agent running on the tp-hub host, which forwards connections to localhost ports 7080 and 7443, respectively. In this case, the public IP address used for outbound connections will be different than the public IP address used for inbound connections. Such a solution
-    can be made to work without a stable LAN IP address or network public address, and without administrative control over the local network. It can even work when the tp-hub host machine is moved between multiple networks (i.e., a mobile tp-hub). Setting up such a port forwarding solution is not described here, but once it is set up, tp-hub can be configured to work with it by pointing `ddns.{PARENT_DOMAIN_NAME}` at the port-forwarder's public IP address.  For a free solution, check out [portmap.io](https://portmap.io/).
+    can be made to work without a stable LAN IP address or network public address, and without administrative control over the local network. It can even work when the tp-hub host machine is moved between multiple networks (i.e., a mobile tp-hub). An example of how to set up such a port-forwarding solution is described [here](stacks/sshtunnel).
       
 
 Installation
@@ -96,7 +96,7 @@ are explicitly configured to receive public Internet traffic.
 ## Register a public DNS Domain that you can administer
 To serve requests to the Internet on well-known, easy-to-remember names, and to enable certificate generation for SSL/HTTPS, you must be able to create your own public DNS records that resolve to your network's public IP address. You
 need to register or already have administrative access to a public domain we will call `${PARENT_DNS_DOMAIN}` (e.g., `smith-vacation-home.com`). You can use AWS Route53, Squarespace, GoDaddy or whatever registrar you like. If you use AWS Route53, this project provides
-handy commands to easily create new DNS names within ${PARENT_DNS_DOMAIN}
+handy commands to easily create new DNS names within `${PARENT_DNS_DOMAIN}`.`
 
 ## Provision a Dynamic DNS (DDNS) name for your network's gateway router public IP Address
 
@@ -107,7 +107,7 @@ that periodically updates a public DNS server if the public IP address changes. 
 
 ### Duck DNS
 If you do not already have a DDNS solution, this project includes a simple docker-compose stack that will run a DDNS agent for
-[Duck DNS](https://www.duckdns.org/). Duck DNS is a completely free, reliable and reputable DDNS service hosted on AWS. Deatails on
+[Duck DNS](https://www.duckdns.org/). Duck DNS is a completely free, reliable and reputable DDNS service hosted on AWS. Details on
 how to deploy the Duck DNS agent for tp-hub are provided [here](stacks/duckdns).
 
 ### Networks without port forwarding
@@ -135,7 +135,7 @@ A copy of this directory tree must be placed on the host machine. You can do thi
    ```bash
    sudo apt-get install git   # if necessary to install git first
    cd ~
-   git clone https://github.com/sammck/tp-hub.git
+   git clone --branch stable https://github.com/sammck/tp-hub.git
    cd tp-hub
    ```
 
@@ -155,7 +155,7 @@ virtualenv that it uses. It can be invoked in one of 3 ways:
 
   - If sourced from another script or on the command line (bash '.' or 'source' command), it will directly modify
   environment variables, etc in the running process to activate the environment. This is similar to the way
-  `. ./.venv/bin/activate` is typically used with Python virtualenv's.
+  `. .venv/bin/activate` is typically used with Python virtualenv's.
   - If invoked as a command with arguments, the arguments are treated as a command to run within the environment.
   The command will be executed, and when it exits, control will be returned to the original caller, without
   modifying the original caller's environment.
@@ -166,11 +166,11 @@ Regardless of which way hub-env is invoked, if the virtualenv does not exist, hu
 packages.  If necessary, hub-env will install system prerequisites needed to create the virtualenv, which might require
 sudo. This is only done the first time hub-env is invoked.
 
-In addition, hub-env tweaks the Python virtualenv's .venv/bin/activate to activate the entire project rather than just the virtualenv.
-This is a convenience primarily so that tools like vscode that understand how to activate a Python virtualenv will work properly
-with this project.
+In addition, hub-env tweaks the Python virtualenv's .venv/bin/activate to activate the entire tp-hub project rather than just the virtualenv.
+This is a convenience primarily so that tools (like vscode) that understand how to activate a Python virtualenv will work properly
+with the tp-hub project.
 
-To set initialize and activate the environment the first time:
+To initialize and activate the environment for the first time:
 
 ```bash
 $ cd ~/tp-hub
@@ -218,7 +218,7 @@ and prompt you to provide values for required config settings. These include:
 
   - An email address to use for Lets-encrypt SSL certificate generation
   - An admin password to use for access to the Traefik dashboard web UI
-  - An initial admin password to use for access to the Portainer web UI. Only used until the first timeyou set a new password.
+  - An initial admin password to use for access to the Portainer web UI. Only used until the first time you set a new password.
   - The value of `${PARENT_DNS_DOMAIN}` that you set up as described above.
 
 It is safe to run `init-config` multiple times; it will only prompt you for values that have not yet been
@@ -241,7 +241,7 @@ hub config
 # ...json configuration is displayed
 ```
 ## Create CNAME records for the initial set of services
-Create the following CNAME records that are used by the initial configuration of the hub:
+On your DNS service, sreate the following CNAME records that are used by the initial configuration of the hub:
 
 ```
 CNAME      traefik.${PARENT_DNS_DOMAIN}.com           ==> ddns.${PARENT_DNS_DOMAIN}.com    (Traefik dashboard UI; only exposed on LAN)
@@ -262,16 +262,16 @@ hub cloud dns create-name whoami
 ```
 
 > **Note**
-> While an SSL cert is generated for the Traefik dashboard, and HTTPS can be used to access
-> it through the local LAN entry point, tp_hub does not expose the Traefik dashboard to the
+> Though an SSL cert is generated for the Traefik dashboard, and HTTPS can be used to access
+> it through the local LAN entry point (with DNS override--see below), tp_hub does not expose the Traefik dashboard to the
 > public Internet. It is not a good idea to expose the Traefik dashboard directly to the Internet;
 > even though we authenticate it with HTTP basic authentication, it is read-only and it
 > does not directly expose secrets, it reveals a lot
 > of information about configuration that could make an attacker's job easier.
 
 > **Note**
-> While an SSL cert is generated for the Portainer UI, and HTTPS can be used to access
-> it through the local LAN entry point, tp_hub does not expose the Portainer UI to the
+> Though an SSL cert is generated for the Portainer UI, and HTTPS can be used to access
+> it through the local LAN entry point (with DNS override--see below), tp_hub does not expose the Portainer UI to the
 > public Internet.
 > Though thousands of users have done so, Portainer does not recommend exposing the Portainer
 > UI directly to the Internet. It does have username/password authentication, multi-user support, and ACLs,
@@ -281,7 +281,7 @@ hub cloud dns create-name whoami
 
 ## Test the physical network configuration
 
-Before launching the hub stacks for the first time, it is important to ensure tha the network has been properly
+Before launching the hub stacks for the first time, it is important to ensure that the network has been properly
 set up in the previous steps. This includes:
 
   - All above mentioned DNS CNAME entries are created and point to this network's public IP address
@@ -295,7 +295,7 @@ You can test all of these assumptions with `test-network-prereqs`
 > The `test-network-prereqs` script requires that the traefik and portainer stacks are not running, or tests will fail.
 
 The environment variables and other customizable configuration elements used by docker-compose
-to launch the Traefic and Portainer docker-compose stacks are derived from the hub configuration
+to launch the Traefik and Portainer docker-compose stacks are derived from the hub configuration
 you set up in previous steps. To prepare these derived files for use by docker-compose, run the following command:
 
 ```bash
@@ -303,15 +303,15 @@ you set up in previous steps. To prepare these derived files for use by docker-c
 test-network-prereqs
 ```
 ## Override public DNS for LAN-local HTTPS names (Optional)
-Services that can be accessed through HTTPS only through a local LAN connection, (including `traefik.${PARENT_DNS_DOMAIN}`,
+ Any services that can be accessed through HTTPS but require a local LAN connection (including `traefik.${PARENT_DNS_DOMAIN}`,
 `portainer.${PARENT_DNS_DOMAIN}`, and `lanhub.{PARENT_DNS_DOMAIN}`) present a special problem.
 
 On the one hand, in order to generate valid Let's-encrypt certificates for them, they must have a valid public DNS name that resolves
-to your network's public IP address--this is necessary so that Traeific can answer Let's-encrypt's HTTP challenge, which is the way Let's-encrypt
+to your network's public IP address--this is necessary so that Traefik can answer Let's-encrypt's HTTP challenge, which is the way Let's-encrypt
 verifies that you own the DNS name you are requesting a certificate for.
 
 On the other hand, for your client (web browser, etc) that is sitting within the LAN, you want the service's DNS name to resolve to the tp-hub host's
-`${HUB_LAN_IP}`. That way it will enter the reverse-proxy through the LAN-local entry point and will be allowed through the firewall.
+LAN-local IP address `${HUB_LAN_IP}`. That way it will enter the reverse-proxy through the LAN-local entry point and will be allowed through the firewall.
 
 The most correct way to make that work would be to run an intermediate DNS server inside your LAN that overrides the necessary public IP
 addresses and point all machines on the LAN at that DNS server (via DHCP configuration, etc). But that is overkill for most home environments.
@@ -335,7 +335,7 @@ This is an optional step--if you are willing to forego HTTPS, then from within y
 ## Build the traefik and portainer docker-compose configuration files
 
 The environment variables and other customizable configuration elements used by docker-compose
-to launch the Traefik and Portainer docker-compose stacks are derived from the hub configuration
+to launch the Traefik and Portainer docker-compose stacks are derived from the tp-hub configuration
 you set up in previous steps. To prepare these derived files for use by docker-compose, run the following command:
 
 ```bash
@@ -361,7 +361,7 @@ traefik-up
 ```
 
 Traefik will immediately begin serving requests on ports 80 and 443 on both the local hub-host and on the public
-Internet. It will also obtain a lets-encrypt SSL certificate for traefik.${PARENT_DNS_DOMAIN}.
+Internet. It will also obtain a lets-encrypt SSL certificate for `traefik.${PARENT_DNS_DOMAIN}``.
 However, no proxied services are yet exposed to the Internet, so requests to the public addresses will
 always receive `404 page not found` regardless of host name.
 
@@ -397,13 +397,6 @@ Verify that port forwarding from 80 to 7080 is working and Traefik is serving pu
 ```bash
 curl http://traefik.${PARENT_DNS_DOMAIN}
 # you will receive "Found" due to a 302 redirect to HTTPS, which is expected
-```
-
-Verify that port forwarding from 443 to 7443 is working and Traefik is serving public Internet HTTPS requests
-with a valid certificate (from any host with Internet access):
-```bash
-curl https://traefik.${PARENT_DNS_DOMAIN}
-# you will receive 404 page not found, which is expected
 ```
 
 ## Launch Portainer
@@ -489,7 +482,10 @@ hub cloud dns create-name whoami
 The only file necessary to install this stack is the docker-compose.yml file in this project at `~/tp-hub/examples/whoami/docker-compose.yml`.
 
 The easiest way to install it into Portainer is to copy it into the clipboard of the browser client on the private LAN that you will be using to
-access Portainer.  Do that in whatever way is easiest for you. E.g., you can browse to https://github.com/sammck/tp-hub/blob/main/examples/whoami/docker-compose.yml and copy it into the clipboard from there 
+access Portainer.  Do that in whatever way is easiest for you. E.g., you can browse to https://github.com/sammck/tp-hub/blob/main/examples/whoami/docker-compose.yml and copy it into the clipboard from there.
+
+> **Note:**
+> For more sophisticated stacks Portainer is also able to clone a named github repo and run a docker-compose stack in it.
 
 ## Log into Portainer
 
@@ -548,12 +544,12 @@ In a browser on any host inside the private LAN, navigate to:
   - `http://${HUB_HOSTNAME}/whoami`                 (Private LAN only)
   - `http://${HUB_HOSTNAME}.local/whoami`           (Private LAN only) (for Mac clients)
 
-Congratulations! You've just deployed a tp-hub web service stack and used it from the internet and your private LAN, with valid HTTPS certificates.
+Congratulations! You've just deployed a tp-hub web service stack and used it from the Internet and your private LAN, with valid HTTPS certificates.
 
-Since the docker-compose service in your `whoami` stack was define with `restart: always`, it will automatically restart when Docker is restarted
+Since the docker-compose service in your `whoami` stack was defined with `restart: always`, it will automatically restart when Docker is restarted
 or the hub host is rebooted.
 
-If you wish to remove the stack, you can click on the "Delete this stack" button in the "Stack details" page. Traeffik will
+If you wish to remove the stack, you can click on the "Delete this stack" button in the "Stack details" page. Traefik will
 automatically detect the removal of containers and remove the reverse-proxy routes associated with them.
 
 
