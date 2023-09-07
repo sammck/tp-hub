@@ -39,7 +39,7 @@ from tp_hub import (
     resolve_public_dns,
   )
 
-subdomains = [ "ddns", "traefik", "portainer", "hub", "whoami" ]
+subdomains = [ "ddns", "traefik", "portainer", "hub", "lanhub", "whoami" ]
 ports = [ 80, 443, 7080, 7443, 8080, 9000 ]
 
 class App:

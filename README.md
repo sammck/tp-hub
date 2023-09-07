@@ -246,7 +246,8 @@ Create the following CNAME records that are used by the initial configuration of
 ```
 CNAME      traefik.${PARENT_DNS_DOMAIN}.com           ==> ddns.${PARENT_DNS_DOMAIN}.com    (Traefik dashboard UI; only exposed on LAN)
 CNAME      portainer.${PARENT_DNS_DOMAIN}.com         ==> ddns.${PARENT_DNS_DOMAIN}.com    (Portainer web UI; only exposed on LAN)
-CNAME      hub.${PARENT_DNS_DOMAIN}.com               ==> ddns.${PARENT_DNS_DOMAIN}.com    (Shared general purpose app DNS name)
+CNAME      hub.${PARENT_DNS_DOMAIN}.com               ==> ddns.${PARENT_DNS_DOMAIN}.com    (Shared general purpose public app DNS name)
+CNAME      lanhub.${PARENT_DNS_DOMAIN}.com            ==> ddns.${PARENT_DNS_DOMAIN}.com    (Shared general purpose lan-local app DNS name)
 CNAME      whoami.${PARENT_DNS_DOMAIN}.com            ==> ddns.${PARENT_DNS_DOMAIN}.com    (Used for initial example web service)
 ```
 If you are using AWS route53, and have credentials configured in  `~/.aws/credentials`, you can use the following commands to create these records:
@@ -256,6 +257,7 @@ If you are using AWS route53, and have credentials configured in  `~/.aws/creden
 hub cloud dns create-name traefik
 hub cloud dns create-name portainer
 hub cloud dns create-name hub
+hub cloud dns create-name lanhub
 hub cloud dns create-name whoami
 ```
 
@@ -300,6 +302,36 @@ you set up in previous steps. To prepare these derived files for use by docker-c
 # if not running in hub-env shell, launch with '~/tp-hub/bin/hub-env'
 test-network-prereqs
 ```
+## Override public DNS for LAN-local HTTPS names (Optional)
+Services that can be accessed through HTTPS only through a local LAN connection, (including `traefik.${PARENT_DNS_DOMAIN}`,
+`portainer.${PARENT_DNS_DOMAIN}`, and `lanhub.{PARENT_DNS_DOMAIN}`) present a special problem.
+
+On the one hand, in order to generate valid Let's-encrypt certificates for them, they must have a valid public DNS name that resolves
+to your network's public IP address--this is necessary so that Traeific can answer Let's-encrypt's HTTP challenge, which is the way Let's-encrypt
+verifies that you own the DNS name you are requesting a certificate for.
+
+On the other hand, for your client (web browser, etc) that is sitting within the LAN, you want the service's DNS name to resolve to the tp-hub host's
+`${HUB_LAN_IP}`. That way it will enter the reverse-proxy through the LAN-local entry point and will be allowed through the firewall.
+
+The most correct way to make that work would be to run an intermediate DNS server inside your LAN that overrides the necessary public IP
+addresses and point all machines on the LAN at that DNS server (via DHCP configuration, etc). But that is overkill for most home environments.
+
+A simpler solution is to edit `/etc/hosts` (or `c:\Windows\System32\Drivers\etc\hosts` on Windows) on each LAN-based client
+that will access the hub, and add the line:
+```
+${HUB_LAN_IP} portainer.${PARENT_DNS_DOMAIN} traefik.${PARENT_DNS_DOMAIN} lanhub.${PARENT_DNS_DOMAIN}
+```
+
+After that, both http and https should work for these DNS names, on so-edited clients, within the LAN.
+
+This is an optional step--if you are willing to forego HTTPS, then from within your LAN you can access services through an alternate HTTP-only LAN-local URL:
+
+| Service | HTTP/HTTPS URLs requiring DNS override | HTTP-only LAN-local URL | 
+| ------- | -------------- | ------------- |
+| **Traefik Dashboard** | `http://traefik.${PARENT_DNS_DOMAIN}`<br>`https://traefik.${PARENT_DNS_DOMAIN}` | `http://${HUB_HOSTNAME}:8080` |
+| **Portainer UI** | `http://portainer.${PARENT_DNS_DOMAIN}`<br>`https://portainer.${PARENT_DNS_DOMAIN}` | `http://${HUB_HOSTNAME}:9000` |
+| **Shared LAN-local services** | `http://lanhub.${PARENT_DNS_DOMAIN}/<appname>`<br>`https://lanhub.${PARENT_DNS_DOMAIN}/<appname>` | `http://${HUB_HOSTNAME}/<appname>` |
+
 ## Build the traefik and portainer docker-compose configuration files
 
 The environment variables and other customizable configuration elements used by docker-compose
@@ -426,15 +458,17 @@ Adding an example "whoami" web service
 In this section, you will deploy a simple web service `whoami`. It simply accepts HTTP get requests and responds to them with plain text
 describing all of the received HTTP headers, the URL path, Traefik route, etc. It will be configured to serve multiple entry points:
 
-  - `http://whoami.${PARENT_DNS_DOMAIN}`        (both on private LAN and public Internet)
-  - `https://whoami.${PARENT_DNS_DOMAIN}`       (both on private LAN and public Internet)
-  - `http://hub.${PARENT_DNS_DOMAIN}/whoami`    (both on private LAN and public internet)
-  - `https://hub.${PARENT_DNS_DOMAIN}/whoami`   (both on private LAN and public internet)
-  - `http://${HUB_LAN_IP}/whoami`               (Private LAN only)
-  - `http://${HUB_HOSTNAME}/whoami`             (Private LAN only)
-  - `http://${HUB_HOSTNAME}.local/whoami`       (Private LAN only) (for Mac clients)
-  - `http://localhost/whoami`                   (Private LAN only) (for clients on hub host itself)
-  - `http://127.0.0.1/whoami`                   (Private LAN only) (for clients on hub host itself)
+  - `http://whoami.${PARENT_DNS_DOMAIN}`            (both on private LAN and public Internet)
+  - `https://whoami.${PARENT_DNS_DOMAIN}`           (both on private LAN and public Internet)
+  - `http://hub.${PARENT_DNS_DOMAIN}/whoami`        (both on private LAN and public internet)
+  - `https://hub.${PARENT_DNS_DOMAIN}/whoami`       (both on private LAN and public internet)
+  - `http://lanhub.${PARENT_DNS_DOMAIN}/whoami`     (Private LAN only, requires DNS override--see above)
+  - `https://lanhub.${PARENT_DNS_DOMAIN}/whoami`    (Private LAN only, requires DNS override--see above)
+  - `http://${HUB_LAN_IP}/whoami`                   (Private LAN only)
+  - `http://${HUB_HOSTNAME}/whoami`                 (Private LAN only)
+  - `http://${HUB_HOSTNAME}.local/whoami`           (Private LAN only) (for Mac clients)
+  - `http://localhost/whoami`                       (Hub host only only) (for clients on hub host itself)
+  - `http://127.0.0.1/whoami`                       (Hub host only only) (for clients on hub host itself)
 
 ## Make sure any new DNS names your stack will serve have been created
 If your stack will run on a DNS name not used by an existing stack, then you need to create a new DNS name *before* deploying the
@@ -499,18 +533,20 @@ graphs, and even open a Web-UI terminal into any container.
 
 ## Use your new web service
 
-In a browser on any host with internet access, navigate to one of:
+In a browser on any host with Internet access, navigate to one of:
 
-  - `http://whoami.${PARENT_DNS_DOMAIN}`        (both on private LAN and public Internet)
-  - `https://whoami.${PARENT_DNS_DOMAIN}`       (both on private LAN and public Internet)
-  - `http://hub.${PARENT_DNS_DOMAIN}/whoami`    (both on private LAN and public internet)
-  - `https://hub.${PARENT_DNS_DOMAIN}/whoami`   (both on private LAN and public internet)
+  - `http://whoami.${PARENT_DNS_DOMAIN}`            (both on private LAN and public Internet)
+  - `https://whoami.${PARENT_DNS_DOMAIN}`           (both on private LAN and public Internet)
+  - `http://hub.${PARENT_DNS_DOMAIN}/whoami`        (both on private LAN and public internet)
+  - `https://hub.${PARENT_DNS_DOMAIN}/whoami`       (both on private LAN and public internet)
 
 In a browser on any host inside the private LAN, navigate to:
 
-  - `http://${HUB_LAN_IP}/whoami`               (Private LAN only)
-  - `http://${HUB_HOSTNAME}/whoami`             (Private LAN only)
-  - `http://${HUB_HOSTNAME}.local/whoami`       (Private LAN only) (for Mac clients)
+  - `http://lanhub.${PARENT_DNS_DOMAIN}/whoami`     (Private LAN only, requires DNS override--see above)
+  - `https://lanhub.${PARENT_DNS_DOMAIN}/whoami`    (Private LAN only, requires DNS override--see above)
+  - `http://${HUB_LAN_IP}/whoami`                   (Private LAN only)
+  - `http://${HUB_HOSTNAME}/whoami`                 (Private LAN only)
+  - `http://${HUB_HOSTNAME}.local/whoami`           (Private LAN only) (for Mac clients)
 
 Congratulations! You've just deployed a tp-hub web service stack and used it from the internet and your private LAN, with valid HTTPS certificates.
 
