@@ -93,12 +93,6 @@ version: "3.3"
 #                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
 #                               environment, and does not need to be added to launch environment variables.
 #
-#    SHARED_LAN_APP_DEFAULT_PATH
-#                            The hostname-relative URL path (e.g., '/whoami') to redirect to for navigations to
-#                                the root path of ${SHARED_LAN_APP_DNS_NAME}.
-#                               If launched by Portainer on tp_hub, this variable is provided by Portainer's own
-#                               environment, and does not need to be added to launch environment variables.
-#
 # This stack serves:
 #    http://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}          (public internet or private LAN)  (hostname based)
 #    https://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}         (public internet or private LAN)  (hostname based)
