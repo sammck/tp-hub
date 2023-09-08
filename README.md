@@ -357,7 +357,7 @@ Next, start the Traefik reverse-proxy. To perform this step, the user must be in
 
 ```bash
 # if not running in hub-env shell, launch with '~/tp-hub/bin/hub-env'
-traefik-up
+hub traefik up
 ```
 
 Traefik will immediately begin serving requests on ports 80 and 443 on both the local hub-host and on the public
@@ -371,7 +371,7 @@ Make a cursory check to see that everything thinks it is running by examining th
 
 ```bash
 # if not running in hub-env shell, launch with '~/tp-hub/bin/hub-env'
-traefik-logs | grep error
+hub traefik logs | grep error
 ```
 
 Verify that the Traefik Dashboard is functioning by opening a web browser on the hub-host or any other
@@ -410,7 +410,7 @@ Next, start the Portainer stack. To perform this step, the user must be in the `
 
 ```bash
 # if not running in hub-env shell, launch with '~/tp-hub/bin/hub-env'
-portainer-up
+hub portainer up
 ```
 
 Portainer will immediately be recognized by Traefik and Traefik will begin reverse-proxying requests to it.
@@ -421,7 +421,7 @@ Make a cursory check to see that everything thinks it is running by examining th
 
 ```bash
 # if not running in hub-env shell, launch with '~/tp-hub/bin/hub-env'
-portainer-logs | grep ERR
+hub portainer logs | grep ERR
 ```
 
 Verify that the Portainer Web UI is functioning by opening a web browser on the hub-host or any other

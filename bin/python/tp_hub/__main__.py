@@ -49,6 +49,7 @@ from tp_hub import (
     build_hub,
     build_traefik,
     build_portainer,
+    DockerComposeStack,
   )
 
 from tp_hub.route53_dns_name import create_route53_dns_name, get_aws, AwsContext
@@ -109,6 +110,105 @@ class CommandHandler:
             self._aws = get_aws()
         return self._aws
 
+    def get_traefik_stack(self, **kwargs) -> DockerComposeStack:
+        dc_file = os.path.join(self.get_project_dir(), "stacks", "traefik", "docker-compose.yml")
+        return DockerComposeStack(dc_file, **kwargs)
+
+    def get_portainer_stack(self, **kwargs) -> DockerComposeStack:
+        dc_file = os.path.join(self.get_project_dir(), "stacks", "portainer", "docker-compose.yml")
+        return DockerComposeStack(dc_file, **kwargs)
+    
+    def traefik_up(self, **kwargs) -> None:
+        self.get_traefik_stack(**kwargs).up()
+
+    def traefik_down(self, **kwargs) -> None:
+        self.get_traefik_stack(**kwargs).down()
+
+    def traefik_logs(self, **kwargs) -> None:
+        log_options: Optional[List[str]] = kwargs.pop('log_options', None)
+        self.get_traefik_stack(**kwargs).logs(log_options)
+
+    def traefik_ps(self, **kwargs) -> None:
+        ps_options: Optional[List[str]] = kwargs.pop('ps_options', None)
+        self.get_traefik_stack(**kwargs).ps(ps_options)
+
+    def portainer_up(self, **kwargs) -> None:
+        self.get_portainer_stack(**kwargs).up()
+
+    def portainer_down(self, **kwargs) -> None:
+        self.get_portainer_stack(**kwargs).down()
+
+    def portainer_logs(self, **kwargs) -> None:
+        log_options: Optional[List[str]] = kwargs.pop('log_options', None)
+        self.get_portainer_stack(**kwargs).logs(log_options)
+
+    def portainer_ps(self, **kwargs) -> None:
+        ps_options: Optional[List[str]] = kwargs.pop('ps_options', None)
+        self.get_portainer_stack(**kwargs).ps(ps_options)
+
+    def hub_up(self, **kwargs) -> None:
+        self.traefik_up(**kwargs)
+        self.portainer_up(**kwargs)
+
+    def hub_down(self, **kwargs) -> None:
+        self.portainer_down(**kwargs)
+        self.traefik_down(**kwargs)
+
+    def hub_ps(self, **kwargs) -> None:
+        self.traefik_ps(**kwargs)
+        self.portainer_ps(**kwargs)
+
+    def cmd_traefik_up(self) -> int:
+        self.traefik_up()
+        return 0
+
+    def cmd_traefik_down(self) -> int:
+        self.traefik_down()
+        return 0
+
+    def cmd_traefik_logs(self) -> int:
+        follow: bool = self._args.follow
+        try:
+            self.traefik_logs(log_options=["-f"] if follow else None)
+        except KeyboardInterrupt:
+            return 130
+        return 0
+
+    def cmd_traefik_ps(self) -> int:
+        self.traefik_ps()
+        return 0
+
+    def cmd_portainer_up(self) -> int:
+        self.portainer_up()
+        return 0
+
+    def cmd_portainer_down(self) -> int:
+        self.portainer_down()
+        return 0
+
+    def cmd_portainer_logs(self) -> int:
+        follow: bool = self._args.follow
+        try:
+            self.portainer_logs(log_options=["-f"] if follow else None)
+        except KeyboardInterrupt:
+            return 130
+        return 0
+
+    def cmd_portainer_ps(self) -> int:
+        self.portainer_ps()
+        return 0
+
+    def cmd_up(self) -> int:
+        self.hub_up()
+        return 0
+
+    def cmd_down(self) -> int:
+        self.hub_down()
+        return 0
+
+    def cmd_ps(self) -> int:
+        self.hub_ps()
+        return 0
 
     def rebuild_traefik_env(self) -> None:
         traefik_compose_file = os.path.join(self.get_project_dir(), "traefik", "docker-compose.yml")
@@ -597,6 +697,32 @@ class CommandHandler:
                             description='Valid subcommands',
                             help=f'Additional help available with "{PROGNAME} traefik <subcommand-name> -h"')
 
+        # ======================= traefik up
+
+        sp = traefik_subparsers.add_parser('up',
+                                description='''Start the Traefik stack.''')
+        sp.set_defaults(func=self.cmd_traefik_up, subparser=sp)
+
+        # ======================= traefik down
+
+        sp = traefik_subparsers.add_parser('down',
+                                description='''Stop the Traefik stack.''')
+        sp.set_defaults(func=self.cmd_traefik_down, subparser=sp)
+
+        # ======================= traefik logs
+
+        sp = traefik_subparsers.add_parser('logs',
+                                description='''Display Traefik logs.''')
+        sp.add_argument("--follow", "-f", action="store_true",
+                            help="Continue monitoring and follow new log messages")
+        sp.set_defaults(func=self.cmd_traefik_logs, subparser=sp)
+
+        # ======================= traefik ps
+
+        sp = traefik_subparsers.add_parser('ps',
+                                description='''Display list of Traefik docker containers.''')
+        sp.set_defaults(func=self.cmd_traefik_ps, subparser=sp)
+
         # ======================= portainer
 
         sp = subparsers.add_parser('portainer',
@@ -606,6 +732,50 @@ class CommandHandler:
                             title='Subcommands',
                             description='Valid subcommands',
                             help=f'Additional help available with "{PROGNAME} portainer <subcommand-name> -h"')
+        
+        # ======================= portainer up
+
+        sp = portainer_subparsers.add_parser('up',
+                                description='''Start the Portainer stack.''')
+        sp.set_defaults(func=self.cmd_portainer_up, subparser=sp)
+
+        # ======================= portainer down
+
+        sp = portainer_subparsers.add_parser('down',
+                                description='''Stop the Portainer stack.''')
+        sp.set_defaults(func=self.cmd_portainer_down, subparser=sp)
+
+        # ======================= portainer logs
+
+        sp = portainer_subparsers.add_parser('logs',
+                                description='''Display Portainer logs.''')
+        sp.add_argument("--follow", "-f", action="store_true",
+                            help="Continue monitoring and follow new log messages")
+        sp.set_defaults(func=self.cmd_portainer_logs, subparser=sp)
+
+        # ======================= portainer ps
+
+        sp = portainer_subparsers.add_parser('ps',
+                                description='''Display list of Portainer docker containers.''')
+        sp.set_defaults(func=self.cmd_portainer_ps, subparser=sp)
+
+        # ======================= up
+
+        sp = subparsers.add_parser('up',
+                                description='''Start the hub.''')
+        sp.set_defaults(func=self.cmd_up, subparser=sp)
+
+        # ======================= down
+
+        sp = subparsers.add_parser('down',
+                                description='''Stop the hub.''')
+        sp.set_defaults(func=self.cmd_down, subparser=sp)
+
+        # ======================= ps
+
+        sp = subparsers.add_parser('ps',
+                                description='''Display lists of Traefik and Portainer docker containers.''')
+        sp.set_defaults(func=self.cmd_ps, subparser=sp)
 
         # ======================= version
 

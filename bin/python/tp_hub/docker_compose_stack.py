@@ -450,6 +450,13 @@ class DockerComposeStack:
         options = [] if options is None else options
         self.call(["logs"] + options)
 
+    def ps(self, options: Optional[List[str]]=None) -> None:
+        """
+        Display the docker containers associated with the stack
+        """
+        options = [] if options is None else options
+        self.call(["ps"] + options)
+
     def __enter__(self) -> DockerComposeStack:
         """Enters a context for the stack, bringing it down if auto_down_on_enter is True,
            then bringing it up if auto_up is True.

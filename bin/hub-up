@@ -1,8 +1,0 @@
-#!/bin/bash
-
-set -e
-
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-"$SCRIPT_DIR/traefik-up" || exit $?
-"$SCRIPT_DIR/portainer-up" || exit $?
