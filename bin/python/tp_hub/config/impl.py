@@ -44,6 +44,9 @@ from ..pkg_logging import logger
 
 from ..internal_types import *
 
+TRAEFIK_DEFAULT_VERSION = "2.10.4"
+PORTAINER_DEFAULT_VERSION = "2.19.0"
+
 class HubConfigError(HubError):
     """An error related to hub configuration"""
     pass
@@ -296,6 +299,19 @@ class HubSettings(BaseSettings):
             raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
         return v
 
+    traefik_version: str = Field(default=None, description=usl(
+        f"""The Traefik version to use. Defaults to TRAEFIK_DEFAULT_VERSION."""
+      ))
+    """The portainer version to use. Defaults to TRAEFIK_DEFAULT_VERSION."""
+
+    @validator('traefik_version', pre=True, always=True)
+    def traefik_version_validator(cls, v, values, **kwargs):
+        sname = 'traefik_version'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = TRAEFIK_DEFAULT_VERSION
+        return v
+
     traefik_dashboard_cert_resolver: str = Field(default=None, description=usl(
         """The name of the Traefik certificate resolver to use for the Traefik dashboard.
         By default, the value of admin_cert_resolver is used."""
@@ -328,6 +344,19 @@ class HubSettings(BaseSettings):
             v = values['admin_cert_resolver']
         if not v in values['allowed_cert_resolvers']:
             raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
+        return v
+
+    portainer_version: str = Field(default=None, description=usl(
+        f"""The portainer version to use. Defaults to PORTAINER_DEFAULT_VERSION."""
+      ))
+    """The portainer version to use. Defaults to PORTAINER_DEFAULT_VERSION."""
+
+    @validator('portainer_version', pre=True, always=True)
+    def portainer_version_validator(cls, v, values, **kwargs):
+        sname = 'portainer_version'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = PORTAINER_DEFAULT_VERSION
         return v
 
     portainer_agent_secret: str = Field(default=None, description=usl(
@@ -834,6 +863,7 @@ class HubSettings(BaseSettings):
     
            In addition to the variables explicitly added, the following variables are implicitly
            added if they are not set:
+                    TRAEFIK_VERSION                     config.traefik_version
                     TRAEFIK_CERT_RESOLVER               config.traefik_dashboard_cert_resolver
                     TRAEFIK_DNS_NAME                    config.traefik_dashboard_dns_name
                     LETSENCRYPT_OWNER_EMAIL_PROD        config.letsencrypt_owner_email_prod
@@ -847,6 +877,7 @@ class HubSettings(BaseSettings):
 
        In addition to the variables explicitly added, the following variables are implicitly
        added if they are not set:
+                TRAEFIK_VERSION                     config.traefik_version
                 TRAEFIK_CERT_RESOLVER               config.traefik_dashboard_cert_resolver
                 TRAEFIK_DNS_NAME                    config.traefik_dashboard_dns_name
                 LETSENCRYPT_OWNER_EMAIL_PROD        config.letsencrypt_owner_email_prod
@@ -860,6 +891,7 @@ class HubSettings(BaseSettings):
         sname = 'traefik_stack_env'
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
         v = cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+        cls._set_default_env_var(v, 'TRAEFIK_VERSION', values['traefik_version'])
         cls._set_default_env_var(v, 'TRAEFIK_CERT_RESOLVER', values['traefik_dashboard_cert_resolver'])
         cls._set_default_env_var(v, 'TRAEFIK_DNS_NAME', values['traefik_dashboard_dns_name'])
         cls._set_default_env_var(v, 'LETSENCRYPT_OWNER_EMAIL_PROD', values['letsencrypt_owner_email_prod'])
@@ -902,6 +934,7 @@ class HubSettings(BaseSettings):
            
            In addition to the variables explicitly added, the following variables are implicitly
            added if they are not set:
+                    PORTAINER_VERSION                  config.portainer_version
                     PORTAINER_CERT_RESOLVER            config.portainer_cert_resolver
                     PORTAINER_DNS_NAME                 config.portainer_dns_name
                     PORTAINER_AGENT_SECRET             config.portainer_agent_secret
@@ -915,6 +948,7 @@ class HubSettings(BaseSettings):
        
        In addition to the variables explicitly added, the following variables are implicitly
        added if they are not set:
+                PORTAINER_VERSION                  config.portainer_version
                 PORTAINER_CERT_RESOLVER            config.portainer_cert_resolver
                 PORTAINER_DNS_NAME                 config.portainer_dns_name
                 PORTAINER_AGENT_SECRET             config.portainer_agent_secret
@@ -928,6 +962,7 @@ class HubSettings(BaseSettings):
         sname = 'portainer_stack_env'
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
         v = cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
+        cls._set_default_env_var(v, 'PORTAINER_VERSION', values['portainer_version'])
         cls._set_default_env_var(v, 'PORTAINER_CERT_RESOLVER', values['portainer_cert_resolver'])
         cls._set_default_env_var(v, 'PORTAINER_DNS_NAME', values['portainer_dns_name'])
         cls._set_default_env_var(v, 'PORTAINER_AGENT_SECRET', values['portainer_agent_secret'])

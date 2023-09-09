@@ -3,6 +3,7 @@ version: "3.3"
 # docker-compose.yml configuration for a Traefik reverse-proxy with dashboard.
 #
 #  Environment Variables:
+#    TRAEFIK_VERSION         The version of traefik to use. defaults to 2.10.4
 #    DEFAULT_CERT_RESOLVER   "prod" or "staging".  The default certificate resolver to use for
 #                                 https services that do not specify a resolver.
 #                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
@@ -114,7 +115,7 @@ services:
     #      and "http://<any-hostname>:8080", all for internal LAN only.
     #
     container_name: "traefik"
-    image: "traefik:v2.10"
+    image: "traefik:v${TRAEFIK_VERSION:-2.10.4}"
     restart: always
     command:
       - "--log.level=${TRAEFIK_LOG_LEVEL}"

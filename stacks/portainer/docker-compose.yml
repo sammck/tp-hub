@@ -3,6 +3,9 @@ version: "3.3"
 # docker-compose.yml configuration for a Traefik reverse-proxy with dashboard.
 #
 #  Environment Variables:
+#    PORTAINER_VERSION       The version of Portainer to use. defaults to 2.19.0
+#    PORTAINER_AGENT_VERSION
+#                            The version of Portainer_agent to use. defaults to ${PORTAINER_VERSION}.
 #    PORTAINER_INITIAL_PASSWORD_HASH
 #                            The initial bcrypt-hashed password of the Portainer 'admin' account to use for
 #                            bootstrapping Portainer security. It is meant to be temporary. The first time
@@ -86,7 +89,7 @@ services:
     # A portainer agent that provides access to docker on the local host.
     # also allows docker volumes to be browsed and edited. Only used by
     # portainer
-    image: portainer/agent:2.18.4
+    image: portainer/agent:${PORTAINER_AGENT_VERSION:-${PORTAINER_VERSION:-2.19.0}}
     environment:
       # REQUIRED: Should be equal to the service name prefixed by "tasks." when
       # deployed inside an overlay network
@@ -110,7 +113,7 @@ services:
     restart: always
 
   portainer:
-    image: portainer/portainer-ce:latest
+    image: portainer/portainer-ce:${PORTAINER_VERSION:-2.19.0}
     extends:
       file: injected-env-vars.yml
       service: injected_env_vars
