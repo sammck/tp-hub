@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Dump TCP traffic on a single port to the console in color
+
+set -e
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+. "$SCRIPT_DIR/hub-env"
+
+INTERFACE_NAME_ARGS=""
+if [ "$1" == "-i" ]; then
+    INTERFACE_NAME_ARGS="-i '$2'"
+    shift 2
+fi
+
+if [ $# -eq 0 ]; then
+    echo "Usage: sniff-tcp-port [-i <interface-name>] <port-number>"
+    exit 1
+fi
+
+
+PORT="$1"
+shift
+
+sudo tcpflow -c -S enable_report=NO -g $INTERFACE_NAME_ARGS port "$PORT" "$@"

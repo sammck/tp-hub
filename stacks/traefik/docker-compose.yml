@@ -270,6 +270,52 @@ services:
     networks:
       - traefik
 
+  shared_app_static:
+    # A simple static webserver for static content common to all public shared apps. In particular, this
+    # serves a favicon.ico file that is used by all shared apps.
+    image: "joseluisq/static-web-server"    # an efficient static webserver on port 80
+    volumes:
+      - "./shared_app_static:/public"          # serve static files from ./shared_app_static
+    networks:
+      - traefik                # The network through which traefik forwards requests to our service
+    restart: always            # This container will be restarted when this host reboots or docker is restarted
+    labels:
+      - "traefik.enable=true"   # tells traefik that this container should be reverse-proxied
+
+      # -----------------------------------------
+      # A router for http://${SHARED_APP_DNS_NAME}/favicon.ico, on the public internet and private entrypoints
+      - "traefik.http.routers.shared-app-static-http-favicon.entrypoints=web,lanweb"
+      - "traefik.http.routers.shared-app-static-http-favicon.rule=Host(`${SHARED_APP_DNS_NAME}`) && Path(`/favicon.ico`)"
+      # -----------------------------------------
+      # A router for https://${SHARED_APP_DNS_NAME}/favicon.ico, on the public internet and private entrypoints
+      - "traefik.http.routers.shared-app-static-https-favicon.entrypoints=websecure,lanwebsecure"
+      - "traefik.http.routers.shared-app-static-https-favicon.tls.certresolver=${SHARED_APP_CERT_RESOLVER}"
+      - "traefik.http.routers.shared-app-static-https-favicon.rule=Host(`${SHARED_APP_DNS_NAME}`) && Path(`/favicon.ico`)"
+
+  shared_lan_app_static:
+    # A simple static webserver for static content common to all private shared apps. In particular, this
+    # serves a favicon.ico file that is used by all private shared apps.
+    image: "joseluisq/static-web-server"    # an efficient static webserver on port 80
+    volumes:
+      - "./shared_lan_app_static:/public"          # serve static files from ./shared_app_static
+    networks:
+      - traefik                # The network through which traefik forwards requests to our service
+    restart: always            # This container will be restarted when this host reboots or docker is restarted
+    labels:
+      - "traefik.enable=true"   # tells traefik that this container should be reverse-proxied
+
+      # -----------------------------------------
+      # A router for http://<common-lan-local-hostname>/favicon.ico, on the private entrypoint
+      - "traefik.http.routers.shared-lan-app-static-http-favicon.entrypoints=lanweb"
+      - "traefik.http.routers.shared-lan-app-static-http-favicon.rule=Host(`${SHARED_APP_DNS_NAME}`,`${SHARED_LAN_APP_DNS_NAME}`, `${HUB_HOSTNAME}`,`${HUB_HOSTNAME2}`,`${HUB_LAN_IP}`,`localhost`,`127.0.0.1`) && Path(`/favicon.ico`)"
+      # -----------------------------------------
+      # A router for https://${SHARED_LAN_APP_DNS_NAME}/favicon.ico, on the local LAN entrypoint only
+      - "traefik.http.routers.shared-lan-app-static-https-favicon.entrypoints=lanwebsecure"
+      - "traefik.http.routers.shared-lan-app-static-https-favicon.tls.certresolver=${SHARED_LAN_APP_CERT_RESOLVER}"
+      - "traefik.http.routers.shared-lan-app-static-https-favicon.rule=Host(`${SHARED_LAN_APP_DNS_NAME}`) && Path(`/favicon.ico`)"
+      # -----------------------------------------
+
+
 networks:
   traefik:
     # The backend network used for reverse-proxy request forwarding. All containers
