@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Update the stable branch to match main
+
+set -e
+
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+. "$SCRIPT_DIR/hub-env"
+
+cd "$PROJECT_DIR"
+
+git push origin main:stable
+git fetch origin stable
