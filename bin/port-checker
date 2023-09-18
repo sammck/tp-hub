@@ -1,0 +1,47 @@
+#!/bin/sh
+
+# A simple HTTP server that listens on a single port and responds with connection info. Useful
+# for testing inbound connectivity to a port.
+# Nothing is required to be installed on the server except wget.
+
+# On first use, downloads and caches the binary port-checker
+# program by Quentin McCaw... See https://github.com/qdm12/port-checker
+
+set -e
+PROG_VERSION="0.3.0"
+
+CACHE_DIR="$HOME/.local/cache/port-checker"
+CACHED_PROGRAM="$CACHE_DIR/port-checker"
+
+if [ ! -f "$CACHED_PROGRAM" ]; then
+  OS_TYPE="$(uname -s)"
+  if [ "$OS_TYPE" = "Linux" ]; then
+    PROG_OS="linux"
+  elif [ "$OS_TYPE" = "Darwin" ]; then
+    PROG_OS="darwin"
+  else
+    echo "Unsupported OS type: [$OS_TYPE]" >&2
+    exit 1
+  fi
+  PROCESSOR_ARCH="$(uname -p)"
+  if [ "$PROCESSOR_ARCH" = "aarch64" ]; then
+    PROG_ARCH="arm64"
+  elif [ "$PROCESSOR_ARCH" = "x86_64" ]; then
+    PROG_ARCH="amd64"
+  else
+    echo "Unsupported processor architecture: $PROCESSOR_ARCH" >&2
+    exit 1
+  fi
+  mkdir -p "$CACHE_DIR"
+  rm -f "$CACHED_PROGRAM.tmp"
+  PROG_URL="https://github.com/qdm12/port-checker/releases/download/v0.3.0/port-checker_${PROG_VERSION}_${PROG_OS}_${PROG_ARCH}"
+  if ! wget -qO "$CACHED_PROGRAM.tmp" "$PROG_URL"; then
+    echo "Failed to download port-checker program from $PROG_URL" >&2
+    exit 1
+  fi
+  chmod +x "$CACHED_PROGRAM.tmp"
+  mv "$CACHED_PROGRAM.tmp" "$CACHED_PROGRAM"
+fi
+
+"$CACHED_PROGRAM" "$@" || exit $?
+
