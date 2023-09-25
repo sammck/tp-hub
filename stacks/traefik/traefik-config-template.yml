@@ -55,29 +55,6 @@ entryPoints:
   portainerui:                                                    # Private LAN-only http://<any-host>:9000 entrypoint. Used for Portainer UI. Exposed to LAN.
     address: ":9000"
 
-# certificatesResolvers:
-
-#   # "prod" certificate resolver uses real lets-encrypt certificates
-#   prod:
-#     acme:
-#       storage: /acme/acme_prod.json                               # ACME state must be preserved so we put it in a Docker volume
-#       email: ${LETSENCRYPT_OWNER_EMAIL_PROD}                      # tell lets-encrypt who owns the DNS domain
-#       httpChallenge:                                              # Use HTTP challenge protocol to verify ownership to lets-encrypt.
-#                                                                   #    lets-encrypt will send a challenge to http:<dns-name>:80/..."
-#                                                                   #    and traefik will respond with credentials. Then the cert will be issued.
-#         entryPoint: web
-
-#   # "staging" certificate resolver uses staging lets-encrypt certificates
-#   staging:
-#     acme:
-#       caServer: https://acme-staging-v02.api.letsencrypt.org/directory
-#       storage: /acme/acme_staging.json                            # ACME state must be preserved so we put it in a Docker volume
-#       email: ${LETSENCRYPT_OWNER_EMAIL_STAGING}                   # tell lets-encrypt who owns the DNS domain
-#       httpChallenge:                                              # Use HTTP challenge protocol to verify ownership to lets-encrypt.
-#                                                                   #    lets-encrypt will send a challenge to http:<dns-name>:80/..."
-#                                                                   #    and traefik will respond with credentials. Then the cert will be issued.
-#         entryPoint: web
-
 experimental:
   plugins:
 
