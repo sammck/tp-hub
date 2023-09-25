@@ -107,25 +107,6 @@ def main() -> int:
         portainer_agent_secret = os.urandom(32).hex()
         set_config_yml_property("hub.portainer_agent_secret", portainer_agent_secret)
 
-    letsencrypt_owner_email = data.get("letsencrypt_owner_email")
-    if force or letsencrypt_owner_email is None:
-        default_email = letsencrypt_owner_email
-        if default_email is None:
-            try:
-                default_email = get_git_user_email(cwd=get_project_dir())
-            except Exception:
-                pass
-        while True:
-            letsencrypt_owner_email = prompt_value(usl(
-                """Lets-encrypt requires an email address to associate with SSL certificates.
-                   Please enter an email address to associate with SSL certificates
-                """), default=default_email).strip()
-            if not is_valid_email_address(letsencrypt_owner_email):
-                print("Invalid email address; please try again", file=sys.stderr)
-                continue
-            break
-        set_config_yml_property("hub.letsencrypt_owner_email", letsencrypt_owner_email)
-
     traefik_password_hash = data.get("traefik_dashboard_htpasswd")
     if force or traefik_password_hash is None:
         need_reset = traefik_password_hash is None or prompt_yes_no(usl(

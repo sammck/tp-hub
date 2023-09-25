@@ -11,11 +11,8 @@ version: "3.3"
 #                                 list will be able to access the Traefik dashboard.
 #    TRAEFIK_LOG_LEVEL       The log level for traefik.  One of "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "PANIC"
 #    SHARED_APP_DNS_NAME     The fully qualified public DNS domain that the public/private shared apps will run on.
-#    SHARED_APP_HTTP_HOST_RULE
-#                            The "Host" Traefik rule expression that will match all HTTP hostnames for the shared public
-#                                 apps.
-#    SHARED_APP_HTTPS_HOST_RULE
-#                            The "Host" Traefik rule expression that will match all HTTPS hostnames for the shared public
+#    SHARED_APP_HOST_RULE
+#                            The "Host" Traefik rule expression that will match all HTTP(S) hostnames for the shared public
 #                                 apps.
 #    SHARED_APP_DEFAULT_PATH
 #                            The hostname-relative URL path (e.g., '/whoami') to redirect to for navigations to
@@ -190,8 +187,7 @@ services:
       # -----------------------------------------
       # A router for http(s)://${SHARED_APP_DNS_NAME}/favicon.ico, on the public internet entrypoint
       - "traefik.http.routers.shared-app-static-public-https-favicon.entrypoints=websecure"
-      #- "traefik.http.routers.shared-app-static-public-https-favicon.tls.certresolver=${SHARED_APP_CERT_RESOLVER}"
-      - "traefik.http.routers.shared-app-static-public-https-favicon.rule=${SHARED_APP_HTTPS_HOST_RULE} && Path(`/favicon.ico`)"
+      - "traefik.http.routers.shared-app-static-public-https-favicon.rule=${SHARED_APP_HOST_RULE} && Path(`/favicon.ico`)"
 
   shared_lan_app_static:
     # A simple static webserver for static content common to all private shared apps. In particular, this

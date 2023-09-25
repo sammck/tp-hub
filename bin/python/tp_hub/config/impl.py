@@ -121,37 +121,6 @@ class HubSettings(BaseSettings):
     """The Hub package version for which the configuration was authored.
        If not provided, the current package version is used."""
 
-    allowed_cert_resolvers: Set[str] = Field(default=None, description=usl(
-        """A set of allowed certificate resolver names. May be provided as a list/set or a comma-delimited
-           string. The default is ['prod', 'staging'].
-           You should not need to override this unless you are using a custom certificate resolver.
-        """
-      ))
-    """A list of allowed certificate resolver names. May be provided as a list or a comma-delimited
-       string. The default is ['prod', 'staging'].
-       You should not need to override this unless you are using a custom certificate resolver."""
-
-    @validator('allowed_cert_resolvers', pre=True, always=True)
-    def allowed_cert_resolvers_validator(cls, v, values, **kwargs):
-        sname = 'allowed_cert_resolvers'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        r = v
-        if r is None:
-            r = ['prod', 'staging']
-        if isinstance(r, str):
-            if r == '':
-                r = []
-            else:
-                r = r.split(',')
-        if not isinstance(r, Iterable):
-            raise HubConfigError(f"Setting {sname}={v!r} must be a comma-delimited string or iterable; edit config.yml")
-        r = set(x for x in r)
-        for resolver in r:
-            if not isinstance(resolver, str) or len(resolver) == 0 or "." in resolver:
-                raise HubConfigError(f"Setting {sname}={v!r} must be a valid list or comma-delimited list of simple identifiers; edit config.yml")
-        return r
-        
-
     parent_dns_domain: str = Field(default=None, description=usl(
         """The registered public DNS domain under which subdomains are created
         as needed for added web services. You must be able to create DNS
@@ -202,105 +171,6 @@ class HubSettings(BaseSettings):
             raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name; edit config.yml")
         return v
         
-    letsencrypt_owner_email: str = Field(default=None, description=usl(
-        """The default email address to use for Let's Encrypt registration  to produce
-        SSL certificates. If not provided, and this project is a git clone of the
-        rpi-hub project, the value from git config user.email is used. Otherwise, REQUIRED."""
-      ))
-    """The default email address to use for Let's Encrypt registration  to produce
-    SSL certificates. If not provided, and this project is a git clone of the
-    rpi-hub project, the value from git config user.email is used. Otherwise, REQUIRED."""
-
-    @validator('letsencrypt_owner_email', pre=True, always=True)
-    def letsencrypt_owner_email_validator(cls, v, values, **kwargs):
-        sname = 'letsencrypt_owner_email'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            raise HubConfigError(f"Setting {sname} is required; edit config.yml")
-        if not is_valid_email_address(v):
-            raise HubConfigError(f"Setting {sname}={v!r} must be a valid email address; edit config.yml")
-        return v
-
-    letsencrypt_owner_email_prod: str = Field(default=None, description=usl(
-        """The email address to use for Let's Encrypt registration in the "prod"
-        name resolver, which produces genuine valid certificates. If not provided,
-        the value from letsencrypt_owner_email is used."""
-      ))
-    """The email address to use for Let's Encrypt registration in the "prod"
-    name resolver, which produces genuine valid certificates. If not provided,
-    the value from letsencrypt_owner_email is used."""
-
-    @validator('letsencrypt_owner_email_prod', pre=True, always=True)
-    def letsencrypt_owner_email_prod_validator(cls, v, values, **kwargs):
-        sname = 'letsencrypt_owner_email_prod'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            v = values['letsencrypt_owner_email']
-        if not is_valid_email_address(v):
-            raise HubConfigError(f"Setting {sname}={v!r} must be a valid email address; edit config.yml")
-        return v
-
-    letsencrypt_owner_email_staging: str = Field(default=None, description=usl(
-        """The email address to use for Let's Encrypt registration in the "staging"
-        name resolver, which produces untrusted certificates for testing purposes.
-        Using the staging resolver avoids hitting rate limits on the prod resolver.
-        If not provided, the value from letsencrypt_owner_email is used."""
-      ))
-    """The email address to use for Let's Encrypt registration in the "staging"
-    name resolver, which produces untrusted certificates for testing purposes.
-    Using the staging resolver avoids hitting rate limits on the prod resolver.
-    If not provided, the value from letsencrypt_owner_email is used."""
-
-    @validator('letsencrypt_owner_email_staging', pre=True, always=True)
-    def letsencrypt_owner_email_staging_validator(cls, v, values, **kwargs):
-        sname = 'letsencrypt_owner_email_staging'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            v = values['letsencrypt_owner_email']
-        if not is_valid_email_address(v):
-            raise HubConfigError(f"Setting {sname}={v!r} must be a valid email address; edit config.yml")
-        return v
-
-    default_cert_resolver: str = Field(default=None, description=usl(
-        """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-        routes. Generally, this should be "prod" for production use (real certs),
-        and "staging" for testing purposes (untrusted certs).
-        If not provided, "prod" is used."""
-      ))
-    """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-    routes. Generally, this should be "prod" for production use (real certs),
-    and "staging" for testing purposes (untrusted certs).
-    If not provided, "prod" is used."""
-
-    @validator('default_cert_resolver', pre=True, always=True)
-    def default_cert_resolver_validator(cls, v, values, **kwargs):
-        sname = 'default_cert_resolver'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            v = "prod"
-        if not v in values['allowed_cert_resolvers']:
-            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
-        return v
-
-    admin_cert_resolver: str = Field(default=None, description=usl(
-        """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-        routes for the Traefik dashboard and Portainer web interface. By default,
-        "prod" is used."""
-      ))
-    """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-    routes for the Traefik dashboard and Portainer web interface. By default,
-    "prod" is used."""
-
-    @validator('admin_cert_resolver', pre=True, always=True)
-    def admin_cert_resolver_validator(cls, v, values, **kwargs):
-        sname = 'admin_cert_resolver'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            v = "prod"
-        if not v in values['allowed_cert_resolvers']:
-            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
-        return v
-
     traefik_version: str = Field(default=None, description=usl(
         f"""The Traefik version to use. Defaults to TRAEFIK_DEFAULT_VERSION."""
       ))
@@ -312,40 +182,6 @@ class HubSettings(BaseSettings):
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
         if v is None:
             v = TRAEFIK_DEFAULT_VERSION
-        return v
-
-    traefik_dashboard_cert_resolver: str = Field(default=None, description=usl(
-        """The name of the Traefik certificate resolver to use for the Traefik dashboard.
-        By default, the value of admin_cert_resolver is used."""
-      ))
-    """The name of the Traefik certificate resolver to use for the Traefik dashboard.
-    By default, the value of admin_cert_resolver is used."""
-
-    @validator('traefik_dashboard_cert_resolver', pre=True, always=True)
-    def traefik_dashboard_cert_resolver_validator(cls, v, values, **kwargs):
-        sname = 'traefik_dashboard_cert_resolver'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            v = values['admin_cert_resolver']
-        if not v in values['allowed_cert_resolvers']:
-            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
-        return v
-
-    portainer_cert_resolver: str = Field(default=None, description=usl(
-        """The name of the Traefik certificate resolver to use for the Portainer web interface.
-        By default, the value of admin_cert_resolver is used."""
-      ))
-    """The name of the Traefik certificate resolver to use for the Portainer web interface.
-    By default, the value of admin_cert_resolver is used."""
-
-    @validator('portainer_cert_resolver', pre=True, always=True)
-    def portainer_cert_resolver_validator(cls, v, values, **kwargs):
-        sname = 'portainer_cert_resolver'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            v = values['admin_cert_resolver']
-        if not v in values['allowed_cert_resolvers']:
-            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
         return v
 
     portainer_version: str = Field(default=None, description=usl(
@@ -594,29 +430,6 @@ class HubSettings(BaseSettings):
             raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name or simple subdomain; edit config.yml")
         return v
 
-    shared_app_cert_resolver: str = Field(default=None, description=usl(
-        """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-           routes using the shared app DNS name. Generally, this should be "prod"
-           once the shared app DNS route has been validated, or "staging"
-           for testing purposes (untrusted certs). If not provided, the value of
-           default_cert_resolver is used."""
-      ))
-    """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-       routes using the shared app DNS name. Generally, this should be "prod"
-       once the shared app DNS route has been validated, or "staging"
-       for testing purposes (untrusted certs). If not provided, the value of
-       default_cert_resolver is used."""
-
-    @validator('shared_app_cert_resolver', pre=True, always=True)
-    def shared_app_cert_resolver_validator(cls, v, values, **kwargs):
-        sname = 'shared_app_cert_resolver'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            v = values['default_cert_resolver']
-        if not v in values['allowed_cert_resolvers']:
-            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
-        return v
-
     shared_app_default_path: str = Field(default=None, description=usl(
         """The URL path to redirect to for the ambiguous root path ('/') of the shared app. This allows
           you to pick one app that is the default for f"http(s)://{config.shared_app_dns_name}".
@@ -659,29 +472,6 @@ class HubSettings(BaseSettings):
             v = f"{v}.{values['parent_dns_domain']}"
         if not is_valid_dns_name(v):
             raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name or simple subdomain; edit config.yml")
-        return v
-
-    shared_lan_app_cert_resolver: str = Field(default=None, description=usl(
-        """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-           routes using the shared LAN app DNS name. Generally, this should be "prod"
-           once the shared LAN app DNS route has been validated, or "staging"
-           for testing purposes (untrusted certs). If not provided, the value of
-           shared_app_cert_resolver is used."""
-      ))
-    """The default name of the Traefik certificate resolver to use for HTTPS/TLS
-       routes using the shared app DNS name. Generally, this should be "prod"
-       once the shared app DNS route has been validated, or "staging"
-       for testing purposes (untrusted certs). If not provided, the value of
-       default_cert_resolver is used."""
-
-    @validator('shared_lan_app_cert_resolver', pre=True, always=True)
-    def shared_lan_app_cert_resolver_validator(cls, v, values, **kwargs):
-        sname = 'shared_lan_app_cert_resolver'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            v = values['shared_app_cert_resolver']
-        if not v in values['allowed_cert_resolvers']:
-            raise HubConfigError(f"Setting {sname}={v!r} must be one of {list(values['allowed_cert_resolvers'])}; edit config.yml")
         return v
 
     shared_lan_app_default_path: str = Field(default=None, description=usl(

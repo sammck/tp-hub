@@ -49,7 +49,7 @@ entryPoints:
     address: ":443"
     http:
       tls: true
-      #  certResolver: "${DEFAULT_CERT_RESOLVER}"
+      #  certResolver: ...
   landashboard:                                                   # Private LAN-only http://<any-host>:8080 entrypoint. Used for Traefik dashboard. Exposed to LAN.
     address: ":8080"
   portainerui:                                                    # Private LAN-only http://<any-host>:9000 entrypoint. Used for Portainer UI. Exposed to LAN.
