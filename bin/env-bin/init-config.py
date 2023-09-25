@@ -158,9 +158,8 @@ def main() -> int:
         while True:
             parent_dns_domain = prompt_value(usl(
                 """A registered public "parent" DNS domain that you administer is required.
-                   The hub will need CNAME records in this domain that resolve to the
-                   public IP address of your network, for each HTTPS hostname
-                   it serves.
+                   The domain should be served by cloudflare, and wildcard CNAME record f"*.{config.parent_dns_name}"
+                   should be configured to forward to the cloadflared tunnel proxy running on this host.
                    Enter a registered parent DNS domain that you control
                 """), default=parent_dns_domain)
             if not is_valid_dns_name(parent_dns_domain):
@@ -169,69 +168,14 @@ def main() -> int:
             break
         set_config_yml_property("hub.parent_dns_domain", parent_dns_domain)
 
-    admin_parent_dns_domain = data.get("admin_parent_dns_domain")
-    if admin_parent_dns_domain is None:
-        admin_parent_dns_domain = parent_dns_domain
-
-    stable_public_dns_name = data.get("stable_public_dns_name")
-    if force or stable_public_dns_name is None:
-        while True:
-            stable_public_dns_name = prompt_value(usl(
-                 f"""The hub requires a permanent DNS name (e.g., ddns.{admin_parent_dns_domain}) that has been configured to always
-                    resolve to the current public IP address of your network's gateway router. Since typical
-                    residential ISPs may change your public IP address periodically, it is usually necessary to
-                    involve Dynamic DNS (DDNS) to make this work. Some gateway routers (e.g., eero) have DDNS
-                    support built-in. Otherwise, you can run a DDNS client agent on any host inside your network,
-                    and use a DDNS provider such as noip.com.
-                    Your DDNS provider will provide you with an obscure but unique and stable (as long as you stay
-                    with the DDNS provider) DNS name for your gateway's public IP address; e.g.,
-                    "g1234567.eero.online". You should then create a permanent CNAME entry (e.g., ddns.{admin_parent_dns_domain})
-                    that points at the obscure DDNS name. That additional level of indirection makes an
-                    easy-to-remember DNS name for your network's public IP address, and ensures that if your
-                    provided obscure name ever changes, you will only have to update this one CNAME record to
-                    be back in business.
-                    All DNS names created by this project will be CNAME records that point to this DNS name.
-                    As a convenience, if this value is a sinple subdomain name with no dots, it will be
-                    automatically prepended to {admin_parent_dns_domain} to form the full DNS name.
-                    The default, recommended value is "ddns".
-                    Please enter a permanent DNS name that will forever resolve to your
-                    network's public IP address
-                """), default=stable_public_dns_name or "ddns")
-            if '.' in stable_public_dns_name and not is_valid_dns_name(stable_public_dns_name):
-                print("Invalid domain name; please try again", file=sys.stderr)
-                continue
-            break
-        set_config_yml_property("hub.stable_public_dns_name", stable_public_dns_name)
-
-    spdn = expand_dns_name(stable_public_dns_name, admin_parent_dns_domain)
-    
-    traefik_dns_name = expand_dns_name(data.get("traefik_dashboard_dns_name") or 'traefik', admin_parent_dns_domain)
-    portainer_dns_name = expand_dns_name(data.get("portainer_dns_name") or 'portainer', admin_parent_dns_domain)
+    traefik_dns_name = expand_dns_name(data.get("traefik_dashboard_dns_name") or 'traefik', parent_dns_domain)
+    portainer_dns_name = expand_dns_name(data.get("portainer_dns_name") or 'portainer', parent_dns_domain)
     shared_app_dns_name = expand_dns_name(data.get("shared_app_dns_name") or 'hub', parent_dns_domain)
     whoami_dns_name = f"whoami.{parent_dns_domain}"
 
     print("\n============================================================", file=sys.stderr)
     print("============================================================", file=sys.stderr)
     print("Local project config in config.yml initialized successfully!", file=sys.stderr)
-
-    if parent_dns_domain == admin_parent_dns_domain:
-        print(f"\nNOTE: in addition to the above, you will need to create the following DNS records in domain {parent_dns_domain}", file=sys.stderr)
-    else:
-        print(f"\nNOTE: in addition to the above, you will need to create the following DNS records in domains {parent_dns_domain} and {admin_parent_dns_domain}", file=sys.stderr)
-    alias_dns_names: List[str] = [
-        traefik_dns_name,
-        portainer_dns_name,
-        shared_app_dns_name,
-        whoami_dns_name,
-    ]
-    print(f"    {'CNAME':<10} {spdn:<35} ==> <your-obscure-dynamic-dns-name>", file=sys.stderr)
-    for alias_dns_name in alias_dns_names:
-        print(f"    {'CNAME':<10} {alias_dns_name:<35} ==> {spdn}", file=sys.stderr)
-
-    print("\nIf you are using AWS route53 and have credentials configured in ~/.aws/credentials, you can use the following commands to create these records:\n", file=sys.stderr)
-    print(f"    hub cloud dns create-name --target=<your-obscure-dynamic-dns-name> {shrink_dns_name(spdn, parent_dns_domain)}", file=sys.stderr)
-    for alias_dns_name in alias_dns_names:
-        print(f"    hub cloud dns create-name {shrink_dns_name(alias_dns_name, parent_dns_domain)}", file=sys.stderr)
 
     return 0
 
