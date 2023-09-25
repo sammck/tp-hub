@@ -147,9 +147,9 @@ services:
       - "traefik.http.routers.traefik-http-private-8080.service=api@internal"
       - "traefik.http.routers.traefik-http-private-8080.middlewares=traefik-auth"
       # -----------------------------------------
-      # A router for https://${SHARED_APP_DNS_NAME}/ (root path only) on the public internet entrypoint, which redirects to default app
+      # A router for http(s)://${SHARED_APP_DNS_NAME}/ (root path only) on the public internet entrypoint, which redirects to default app
       - "traefik.http.routers.traefik-https-shared-public-default-path.entrypoints=websecure"
-      - "traefik.http.routers.traefik-https-shared-public-default-path.rule=${SHARED_APP_HTTPS_HOST_RULE} && Path(`/`)"
+      - "traefik.http.routers.traefik-https-shared-public-default-path.rule=${SHARED_APP_HOST_RULE} && Path(`/`)"
       - "traefik.http.routers.traefik-https-shared-public-default-path.service=api@internal"
       # redirect root path ('/') to default app path
       - "traefik.http.routers.traefik-https-shared-public-default-path.middlewares=traefik-shared-app-default-path"
