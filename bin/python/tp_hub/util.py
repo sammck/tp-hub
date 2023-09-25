@@ -18,7 +18,8 @@ import re
 import urllib3
 from functools import cache
 import copy
-
+import ipaddress
+import subprocess
 from ruamel.yaml.comments import CommentedMap as YAMLContainer
 from tomlkit.container import Container as TOMLContainer
 
@@ -38,10 +39,85 @@ from project_init_tools.util import (
     download_url_text,
 )
 
-@cache
-def get_public_ip_address() -> str:
+from .internal_types import *
+
+def normalize_ip_address(addr: IPAddressOrStr) -> IPAddress:
     """
-    Get the public IP address of this host by asking https://api.ipify.org/
+    Normalize an IP address to an IPAddress object
+
+    Raises ValueError if the address cannot be normalized to
+    an IPAddress.
+    """
+    if isinstance(addr, (IPv4Address, IPv6Address)):
+        result = addr
+    elif isinstance(addr, str):
+        if ':' in addr and addr.startswith('[') and addr.endswith(']'):
+            # IPv6 address in brackets
+            addr = addr[1:-1]
+        result = ipaddress.ip_address(addr)
+    elif isinstance(addr, int):
+        result = ipaddress.ip_address(addr)
+    else:
+        raise ValueError(f"cannot convert type {type(addr)} to an IPAddress: {addr!r}")
+    return result
+
+def normalize_ipv4_address(addr: IPAddressOrStr) -> IPv4Address:
+    """
+    Normalize an IP address to an IPv4Address object
+    """
+    result = normalize_ip_address(addr)
+    if not isinstance(result, IPv4Address):
+        raise ValueError(f"Invalid IP address type {type(result)}; IPv4 required: {result}")
+    return result
+
+def normalize_ipv6_address(addr: IPAddressOrStr) -> IPv6Address:
+    """
+    Normalize an IP address to an IPv6Address object
+    """
+    result = normalize_ip_address(addr)
+    if not isinstance(result, IPv6Address):
+        raise ValueError(f"Invalid IP address type {type(result)}; IPv6 required: {result}")
+    return result
+
+def is_ip_address(addr: IPAddressOrStr) -> bool:
+    """
+    Check if a value is a valid IP address
+    """
+    try:
+        normalize_ip_address(addr)
+        return True
+    except ValueError:
+        return False
+
+def is_ipv4_address(addr: IPAddressOrStr) -> bool:
+    """
+    Check if a value is a valid IPv4 address
+    """
+    try:
+        normalize_ipv4_address(addr)
+        return True
+    except ValueError:
+        return False
+
+def is_ipv6_address(addr: IPAddressOrStr) -> bool:
+    """
+    Check if a value is a valid IPv6 address
+    """
+    try:
+        normalize_ipv6_address(addr)
+        return True
+    except ValueError:
+        return False
+        
+@cache
+def get_public_ipv4_egress_address() -> IPv4Address:
+    """
+    Get the outgoing public IP4 address of this host by asking https://api.ipify.org/
+    The result is the public IP address that is used for egress to the Internet over the default
+    route, after all NATs have been traversed. Typically it is the WAN IPV4 address of your gateway router.
+    If you are behind carrier-grade NAT, it will be the selected WAN IPV4 address of the carrier's NAT gateway.
+    If you can use direct port-forwarding on your gateway router, this is the address you should use as
+    your hub public IP address.
     """
     try:
         result = download_url_text("https://api.ipify.org/").strip()
@@ -49,26 +125,84 @@ def get_public_ip_address() -> str:
             raise HubError("https://api.ipify.org returned an empty string")
         return result
     except Exception as e:
-        raise HubError("Failed to get public IP address") from e
+        raise HubError("Failed to get public IPv4 egress address") from e
 
-class IpRouteInfo():
-    remote_ip_addr: str
-    """The IP address of the remote host"""
+@cache
+def get_public_ipv6_egress_address() -> Optional[str]:
+    """
+    Get the outgoing public IPv6 address of this host by asking https://api64.ipify.org/
+    The result is the public IPv6 address that is used for egress to the Internet over the default
+    route, after all NATs have been traversed. Typically (by default in Ubuntu),it is a "temporary"
+    randomly generated IPv6 address which changes periodically in accordance with
+    RFC 4941 (https://datatracker.ietf.org/doc/html/rfc4941).
 
-    gateway_lan_addr: str
-    """The LAN-local IP address of the gateway router on the route to the remote host"""
+    Temporary addresses are unsuitable for use as a hub public IP address, because they change
+    too frequently. However, quite often your network adapter will also have a "stable" IPv6 address
+    that does not change unless your gateway's IPv6 prefix changes. You should use
+    get_stable_public_ipv6_address() to get the stable address.
+
+    Returns None if the host does not have a route to the Internet via IPv6.
+    """
+    try:
+        result = download_url_text("https://api64.ipify.org/").strip()
+        if result == "":
+            raise HubError("https://api64.ipify.org returned an empty string")
+        if not ':' in result:
+            # This is an IPv4 address, not IPv6, which means that no IPv6 route to the Internet
+            # was found, and it fell back to IPv4
+            return None
+        return result
+    except Exception as e:
+        raise HubError("Failed to get public IPv6 egress address") from e
+
+@cache
+def get_stable_public_ipv6_address() -> Optional[str]:
+    """
+    Get the Global IPV6 address of this host that is stable until the Gateway router's IPv6
+    prefix changes. If you are using direct IPv6 with firewall ports opened at your gateway,
+    This is the address you should use as your hub public IPv6 address.
+
+    By default on Ubuntu, there is no stable global IPv6 address, even if the
+    gateway IPv6 prefix never changes. The closest thing is an address marked
+    "scope global dynamic mngtmpaddr noprefixroute", which is derived from the mac address
+    of the network adapter and a random GUID that is regenerated on every reboot. So
+    it changes every time the host reboots. This is not ideal for use as a hub public
+    IPv6 address, because it will change every time the host reboots. The DDNS client
+    will update the DNS record, but it will take some time for the DNS recoords to time
+    out of various DNS caches, so there will be a period of time after every reboot
+    when the hub is unreachable.
+
+    The solution is to configure a static global IPv6 address suffix on the host.
+    This can be done by setting "IPv6Token=static:<suffix-address>" in the network adapter's
+    configuration file. The suffix-address will be appended to the gateway's IPv6 prefix
+    to form the host's global IPv6 address. The suffix-address must be unique on the
+    network, so it should be a random byte sequence. The DDNS client will update the DNS record
+    whenever the Gateway's IPv6 prefix changes, which may happen if the ISP changes the
+    prefix, but it will be relatively rare.
+
+    Returns None if no stable global IPv6 address on an interface that has a gateway
+    route was found.
+    """
+    raise NotImplementedError("get_stable_public_ipv6_address() is not yet implemented")
+
+class Ipv4RouteInfo:
+    remote_ipv4_addr: IPv4Address
+    """The IPv4 address of the remote host"""
+
+    gateway_lan_ipv4_addr: IPv4Address
+    """The LAN-local IPv4 address of the gateway router on the route to the remote host"""
 
     network_interface: str
     """The name of the local network interface that is on the route to remote host"""
 
-    local_lan_addr: str
-    """The LAN-local IP address of this host on the route to the remote host"""
+    local_lan_ipv4_addr: IPv4Address
+    """The LAN-local IPv4 address of this host on the route to the remote host"""
 
-    _ip_route_re = re.compile(r"^(?P<remote_addr>\d+\.\d+\.\d+\.\d+)\s+via\s+(?P<gateway_lan_addr>\d+\.\d+\.\d+\.\d+)\s+dev\s+(?P<network_interface>.*[^\s])\s+src\s+(?P<local_lan_addr>\d+\.\d+\.\d+\.\d+)\s+uid\s")
+    _ip_route_re = re.compile(r"^(?P<remote_addr>\d+\.\d+\.\d+\.\d+)\s+via\s+(?P<gateway_lan_ipv4_addr>\d+\.\d+\.\d+\.\d+)\s+dev\s+(?P<network_interface>.*[^\s])\s+src\s+(?P<local_lan_ipv4_addr>\d+\.\d+\.\d+\.\d+)\s+uid\s")
 
-    def __init__(self, remote_ip_addr: str):
+    def __init__(self, remote_ipv4_addr: IPv4AddressOrStr):
         """
-        Get info about the route to a remote IP address
+        Get info about the route to a remote IPv4 address
         
         This is done by parsing the output of the "ip route" command when it describes
         the route to the remote address; e.g.:
@@ -77,62 +211,147 @@ class IpRouteInfo():
                 8.8.8.8 via 192.168.0.1 dev eth0 src 192.168.0.245 uid 1000 \    cache 
         """
         
-        self.remote_ip_addr = remote_ip_addr
+        self.remote_ipv4_addr = normalize_ipv4_address(remote_ipv4_addr)
         response = sudo_check_output_stderr_exception(
-            ["ip", "-o", "route", "get", remote_ip_addr],
+            ["ip", "-o", "route", "get", str(self.remote_ipv4_addr)],
             use_sudo=False,
         ).decode("utf-8").split('\n')[0].rstrip()
         match = self._ip_route_re.match(response)
         if match is None:
-            raise HubError(f"Failed to parse output of 'ip -o route get {remote_ip_addr}: '{response}'")
-        self.gateway_lan_addr = match.group("gateway_lan_addr")
+            raise HubError(f"Failed to parse output of 'ip -o route get {self.remote_ipv4_addr}: '{response}'")
+        self.gateway_lan_ipv4_addr = normalize_ipv4_address(match.group("gateway_lan_ipv4_addr"))
         self.network_interface = match.group("network_interface")
-        self.local_lan_addr = match.group("local_lan_addr")
+        self.local_lan_ipv4_addr = normalize_ipv4_address(match.group("local_lan_ipv4_addr"))
+
+
+class Ipv6RouteInfo:
+    remote_ipv6_addr: IPv6Address
+    """The IPv6 address of the remote host"""
+
+    gateway_lan_ipv6_addr: IPv6Address
+    """The LAN-local IPv6 address of the gateway router on the route to the remote host"""
+
+    network_interface: str
+    """The name of the local network interface that is on the route to remote host"""
+
+    egress_ipv6_addr: IPv6Address
+    """IPv6 address of this host on the route to the remote host"""
+
+    ip_route_re = re.compile(r"^(?P<remote_ipv6_addr>[0-9a-f:]+)\s+from\s+(?P<from_ipv6_addr>[0-9a-f:]+)\s+via\s+(?P<gateway_lan_ipv6_addr>[0-9a-f:]+)\s+dev\s+(?P<network_interface>\S+)\s+((proto\s+\S+)\s+)*src\s+(?P<egress_ipv6_addr>[0-9a-f:]+)\s")
+
+    def __init__(self, remote_ipv6_addr: IPv6AddressOrStr):
+        """
+        Get info about the route to a remote IPv6 address
+        
+        This is done by parsing the output of the "ip route" command when it describes
+        the route to the remote address; e.g.:
+
+                $ ip -o route get 2001:4860:4860::8888
+                2001:4860:4860::8888 from :: via fe80::66c2:69ff:fe01:40cb dev eth0 proto ra src 2601:602:9700:2ac5:2546:163c:819f:b48a metric 100 pref medium        """
+        
+        self.remote_ipv6_addr = normalize_ipv6_address(remote_ipv6_addr)
+        response = sudo_check_output_stderr_exception(
+            ["ip", "-o", "route", "get", str(self.remote_ipv6_addr)],
+            use_sudo=False,
+        ).decode("utf-8").split('\n')[0].rstrip()
+        match = self._ip_route_re.match(response)
+        if match is None:
+            raise HubError(f"Failed to parse output of 'ip -o route get {self.remote_ipv4_addr}: '{response}'")
+        self.gateway_lan_ipv6_addr = normalize_ipv6_address(match.group("gateway_lan_ipv6_addr"))
+        self.network_interface = match.group("network_interface")
+        self.egress_ipv6_addr = normalize_ipv4_address(match.group("egress_ipv6_addr"))
+
 
 @cache
-def get_route_info(remote_ip_addr: str) -> IpRouteInfo:
+def get_ipv4_route_info(remote_ipv4_addr: IPv4AddressOrStr) -> Ipv4RouteInfo:
     """
     Get info about the route to a remote IP address
     """
-    return IpRouteInfo(remote_ip_addr)
+    return Ipv4RouteInfo(remote_ipv4_addr)
 
 @cache
-def get_internet_route_info() -> IpRouteInfo:
+def get_internet_ipv4_route_info() -> Ipv4RouteInfo:
     """
-    Get info about the route to the public internet.
+    Get info about the IPv4 route to the public internet.
 
     An arbitrary internet host address (Google's name servers) is used to determine the route.
 
     """
-    return IpRouteInfo("8.8.8.8")
+    return Ipv4RouteInfo("8.8.8.8")
 
 @cache
-def get_lan_ip_address() -> str:
+def get_lan_ipv4_address() -> IPv4Address:
     """
-    Get the LAN-local IP address of this host that is on the same subnet with the default gateway
+    Get the LAN-local IPv4 address of this host that is on the same subnet with the default gateway
     router. This will be the address that should be used for port-forwarding.
     """
     # Get info about the route to an arbitrary internet host (Google's DNS servers)
-    info = get_internet_route_info()
-    return info.local_lan_addr
+    info = get_internet_ipv4_route_info()
+    return info.local_lan_ipv4_addr
 
 @cache
-def get_gateway_lan_ip_address() -> str:
+def get_gateway_lan_ip4_address() -> IPv4Address:
     """
-    Get the LAN-local IP address of the default gateway
+    Get the LAN-local IPv4 address of the default gateway
     router.
     """
     # Get info about the route to an arbitrary internet host (Google's DNS servers)
-    info = get_internet_route_info()
-    return info.gateway_lan_addr
+    info = get_internet_ipv4_route_info()
+    return info.gateway_lan_ipv4_addr
 
 @cache
-def get_default_interface() -> str:
+def get_default_ipv4_interface() -> str:
     """
-    Get the name of the network interface that is on the route to the default gateway router.
+    Get the name of the network interface that is on IPv4 the route to the default gateway router.
     """
     # Get info about the route to an arbitrary internet host (Google's DNS servers)
-    info = get_internet_route_info()
+    info = get_internet_ipv4_route_info()
+    return info.network_interface
+
+@cache
+def get_ipv6_route_info(remote_ipv6_addr: IPv6AddressOrStr) -> Ipv6RouteInfo:
+    """
+    Get info about the IPv6 route to a remote IP address
+    """
+    return Ipv6RouteInfo(remote_ipv6_addr)
+
+@cache
+def get_internet_ipv6_route_info() -> Ipv6RouteInfo:
+    """
+    Get info about the IPv6 route to the public internet.
+
+    An arbitrary internet host address (Google's name servers) is used to determine the route.
+
+    """
+    return Ipv6RouteInfo("2001:4860:4860::8888")
+
+@cache
+def get_routed_egress_ipv6_address() -> str:
+    """
+    Get the IPv6 address of this host that is on the same subnet with the default gateway
+    router. In ubuntu this is normally a temporary address.
+    """
+    # Get info about the route to an arbitrary internet host (Google's DNS servers)
+    info = get_internet_ipv6_route_info()
+    return info.egress_ipv6_addr
+
+@cache
+def get_gateway_lan_ip6_address() -> str:
+    """
+    Get the LAN-local IPv^ address of the default gateway
+    router.
+    """
+    # Get info about the route to an arbitrary internet host (Google's DNS servers)
+    info = get_internet_ipv6_route_info()
+    return info.gateway_lan_ipv6_addr
+
+@cache
+def get_default_ipv6_interface() -> str:
+    """
+    Get the name of the network interface that is on the default IPv6 route to the default gateway router.
+    """
+    # Get info about the route to an arbitrary internet host (Google's DNS servers)
+    info = get_internet_ipv4_route_info()
     return info.network_interface
 
 def loads_ndjson(text: str) -> List[JsonableDict]:
@@ -313,45 +532,62 @@ def docker_compose_call_output(
         stderr_exception=stderr_exception,
       )
 
-def raw_resolve_public_dns(public_dns: str) -> JsonableDict:
+def raw_resolve_public_dns(public_dns: str, record_type: Optional[Union[int, str]]=None) -> JsonableDict:
     """
-    Resolve a public DNS name to an IP address. Bypasses all host files, mDNS, intranet DNS servers etc.
+    Resolve a public DNS name to DNS record info. Bypasses all host files, mDNS, intranet DNS servers etc.
+    By default fetches A records.
     """
     http = urllib3.PoolManager()
-    response = http.request("GET", "https://dns.google/resolve", fields=dict(name=public_dns))
+    fields: Dict[str, str] = dict(name=public_dns)
+    if record_type is not None:
+        fields["type"] = str(record_type)
+    response = http.request("GET", "https://dns.google/resolve", fields=fields)
     if response.status != 200:
         raise HubError(f"Failed to resolve public DNS name {public_dns}: {response.status} {response.reason}")
     data: JsonableDict = json.loads(response.data.decode("utf-8"))
     return data
 
-def resolve_public_dns(public_dns: str, error_on_empty: bool = True) -> List[str]:
+def resolve_public_dns(
+        public_dns: str,
+        error_on_empty: bool = True,
+        allow_ipv6: bool=True,
+        allow_ipv4: bool=True
+      ) -> List[IPAddress]:
     """
-    Resolve a public DNS name to one or more A record IP addresses. Bypasses all host files, mDNS, intranet DNS servers etc.
+    Resolve a public DNS name to one or more A or AAAA record IP addresses. Bypasses all host files, mDNS, intranet DNS servers etc.
     """
-    data = raw_resolve_public_dns(public_dns)
+    if not (allow_ipv6 or allow_ipv4):
+        raise HubError("resolve_public_dns: allow_ipv6 and allow_ipv4 cannot both be False")
+    record_types: List[str] = []
+    if allow_ipv6:
+        record_types.append("AAAA")
+    if allow_ipv4:
+        record_types.append("A")
     results: List[str] = []
-    if not "Status" in data:
-        raise HubError(f"Failed to resolve public DNS name {public_dns}: No Status in response")
-    if data["Status"] != 3:
-        if data["Status"] != 0:
-            raise HubError(f"Failed to resolve public DNS name {public_dns}: Status {data['Status']}")
-        if not "Answer" in data:
-            raise HubError(f"Failed to resolve public DNS name {public_dns}: No Answer in response")
-        answers = data["Answer"]
-        if not isinstance(answers, list):
-            raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer is not a list")
-        for answer in answers:
-            if not isinstance(answer, dict):
-                raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry is not a dictionary")
-            if not "type" in answer:
-                raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing type field")
-            if answer["type"] == 1:
-                if not "data" in answer:
-                    raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing data field")
-                result = answer["data"]
-                if not isinstance(result, str):
-                    raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry data field is not a string")
-                results.append(result)
+    for record_type in record_types:
+        data = raw_resolve_public_dns(public_dns, record_type=record_type)
+        if not "Status" in data:
+            raise HubError(f"Failed to resolve public DNS name {public_dns}: No Status in response")
+        if data["Status"] != 3:
+            if data["Status"] != 0:
+                raise HubError(f"Failed to resolve public DNS name {public_dns}: Status {data['Status']}")
+            if not "Answer" in data:
+                raise HubError(f"Failed to resolve public DNS name {public_dns}: No Answer in response")
+            answers = data["Answer"]
+            if not isinstance(answers, list):
+                raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer is not a list")
+            for answer in answers:
+                if not isinstance(answer, dict):
+                    raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry is not a dictionary")
+                if not "type" in answer:
+                    raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing type field")
+                if answer["type"] == 1:
+                    if not "data" in answer:
+                        raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry is missing data field")
+                    result = answer["data"]
+                    if not isinstance(result, str):
+                        raise HubError(f"Failed to resolve public DNS name {public_dns}: Answer entry data field is not a string")
+                    results.append(normalize_ip_address(result))
     if len(results) == 0 and error_on_empty:
         raise HubError(f"Failed to resolve public DNS name {public_dns}: No A records found")
     return results
@@ -512,3 +748,24 @@ def rel_symlink(src: str, dst: str) -> None:
     logger.debug(f"os.symlink src (target)={rel_pathname}, dst (symlink file)={dst}, abs src (target)={abs_target}, abs dst (symlink file)={abs_symlink_file}")
 
     os.symlink(rel_pathname, dst)
+
+def atomic_mv(source: str, dest: str, force: bool=True) -> None:
+    """
+    Equivalent to the linux "mv" commandline.  Atomic within same volume, and overwrites the destination.
+    Works for directories.
+  
+    Args:
+        source (str): Source file or directory.x
+        dest (str): Destination file or directory. Will be overwritten if it exists.
+        force (bool): Don't prompt for overwriting. Default is True
+  
+    Raises:
+        RuntimeError: Any error from the mv command
+    """
+    source = os.path.expanduser(source)
+    dest = os.path.expanduser(dest)
+    cmd: List[str] = ['mv']
+    if force:
+        cmd.append('-f')
+    cmd.extend([ source, dest ])
+    subprocess.check_call(cmd)

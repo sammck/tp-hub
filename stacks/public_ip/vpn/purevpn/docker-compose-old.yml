@@ -1,0 +1,14 @@
+version: "3"
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - "VPN_SERVICE_PROVIDER=purevpn"
+      - "OPENVPN_USER=${OPENVPN_USER}"
+      - "OPENVPN_PASSWORD=${OPENVPN_PASSWORD}"
+      - "SERVER_COUNTRIES=${SERVER_COUNTRIES-United States}"
+      - "SERVER_REGIONS=${SERVER_REGIONS-Washington}"
+      - "SERVER_CITIES=${SERVER_CITIES-Seattle}"
+      - "SERVER_HOSTNAMES=${SERVER_HOSTNAMES-149.40.51.32}"

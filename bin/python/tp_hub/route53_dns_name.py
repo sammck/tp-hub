@@ -19,17 +19,7 @@ from .internal_types import *
 from .pkg_logging import logger
 
 from .util import (
-    install_docker,
-    docker_is_installed,
-    install_docker_compose,
-    docker_compose_is_installed,
-    create_docker_network,
-    create_docker_volume,
-    should_run_with_group,
-    get_public_ip_address,
-    get_gateway_lan_ip_address,
-    get_lan_ip_address,
-    get_default_interface,
+    get_public_ipv4_egress_address,
     resolve_public_dns,
   )
 
@@ -303,7 +293,7 @@ def create_route53_dns_name(
         target: str,
         *,
         verify_public_ip: Optional[bool]=None,
-        public_ip: Optional[str]=None,
+        public_ip: Optional[IPAddressOrStr]=None,
         allow_exists: bool=True,
         allow_overwrite: bool=False,
         ttl: int=300,
@@ -355,7 +345,7 @@ def create_route53_dns_name(
         verify_public_ip = public_ip is not None
 
     if verify_public_ip and public_ip is None:
-        public_ip = get_public_ip_address()
+        public_ip = get_public_ipv4_egress_address()
 
     if dns_name.endswith("."):
         dns_name = dns_name[:-1]
@@ -373,7 +363,7 @@ def create_route53_dns_name(
 
     dns_subdomain, dns_zone_name = dns_name.split('.', 1)
 
-    target_is_ip = _ipv4_re.match(target) is not None
+    target_is_ip = _ipv4_re.match(target) is not None or ':' in target
 
     resolved_ips: List[str]
 

@@ -11,7 +11,6 @@ Read and write config.yml
 import os
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap as YAMLContainer
-from project_init_tools import atomic_mv
 import yaml
 from copy import deepcopy
 from threading import Lock
@@ -19,7 +18,7 @@ from io import StringIO
 
 from .impl import HubSettings
 from .config_yaml_generator import generate_settings_yaml
-from ..util import unindent_string_literal as usl, unindent_text
+from ..util import unindent_string_literal as usl, unindent_text, atomic_mv
 from ..pkg_logging import logger
 
 from ..internal_types import *
@@ -105,7 +104,7 @@ def _write_config_yml_content_no_lock(content: str) -> None:
               ) as fd:
             fd.write(content)
         _clear_config_yml_cache_no_lock()
-        atomic_mv(tmp_pathname, pathname)
+        atomic_mv(tmp_pathname, pathname, force=True)
     finally:
         if os.path.exists(tmp_pathname):
             os.unlink(tmp_pathname)

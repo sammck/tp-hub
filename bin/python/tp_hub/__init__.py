@@ -40,13 +40,26 @@ from .proj_dirs import (
   )
 
 from .util import (
-    IpRouteInfo,
-    get_public_ip_address,
-    get_route_info,
-    get_internet_route_info,
-    get_lan_ip_address,
-    get_gateway_lan_ip_address,
-    get_default_interface,
+    normalize_ip_address,
+    normalize_ipv4_address,
+    normalize_ipv6_address,
+    is_ip_address,
+    is_ipv4_address,
+    is_ipv6_address,
+    Ipv6RouteInfo,
+    Ipv4RouteInfo,
+    get_public_ipv4_egress_address,
+    get_ipv4_route_info,
+    get_internet_ipv4_route_info,
+    get_lan_ipv4_address,
+    get_gateway_lan_ip4_address,
+    get_default_ipv4_interface,
+    get_public_ipv6_egress_address,
+    get_ipv6_route_info,
+    get_internet_ipv6_route_info,
+    get_routed_egress_ipv6_address,
+    get_gateway_lan_ip6_address,
+    get_default_ipv6_interface,
     docker_call,
     docker_call_output,
     docker_compose_call,
@@ -76,6 +89,7 @@ from .util import (
     is_valid_dns_name_or_ipv4_address,
     is_valid_email_address,
     rel_symlink,
+    atomic_mv,
   )
 
 from .docker_util import (
@@ -111,3 +125,5 @@ from .builder import (
     build_portainer,
     build_hub,
   )
+
+from .yaml_template import load_yaml_template_str, load_yaml_template_file

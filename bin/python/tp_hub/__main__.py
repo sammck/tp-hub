@@ -32,10 +32,10 @@ from tp_hub import (
     create_docker_network,
     create_docker_volume,
     should_run_with_group,
-    get_public_ip_address,
-    get_gateway_lan_ip_address,
-    get_lan_ip_address,
-    get_default_interface,
+    get_public_ipv4_egress_address,
+    get_gateway_lan_ip4_address,
+    get_lan_ipv4_address,
+    get_default_ipv4_interface,
     get_project_dir,
     logger,
     HubSettings,
@@ -385,6 +385,8 @@ class CommandHandler:
                 property_converter = float
             elif allowed_type == 'boolean':
                 property_converter = bool
+            elif allowed_type == 'array' and 'items' in property and 'type' in property['items'] and property['items']['type'] == 'string':
+                property_converter = lambda x: x.split(',')
             else:
                 raise ValueError(f"Property name {property_name} has unknown type {allowed_type}; cannot be set")
         if is_json:
@@ -472,10 +474,10 @@ class CommandHandler:
         # Create the "portainer_data" volume if it doesn't exist:
         create_docker_volume("portainer_data")
 
-        public_ip_addr = get_public_ip_address()
-        gateway_lan_ip_addr = get_gateway_lan_ip_address()
-        lan_ip_addr = get_lan_ip_address()
-        default_interface = get_default_interface()
+        public_ip_addr = get_public_ipv4_egress_address()
+        gateway_lan_ip_addr = get_gateway_lan_ip4_address()
+        lan_ip_addr = get_lan_ipv4_address()
+        default_interface = get_default_ipv4_interface()
 
         print(file=sys.stderr)
         print(f"Default interface: {default_interface}", file=sys.stderr)

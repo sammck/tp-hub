@@ -23,15 +23,14 @@ from tp_hub import (
     create_docker_network,
     create_docker_volume,
     should_run_with_group,
-    get_public_ip_address,
-    get_gateway_lan_ip_address,
-    get_lan_ip_address,
-    get_default_interface,
+    get_public_ipv4_egress_address,
+    get_gateway_lan_ip4_address,
+    get_lan_ipv4_address,
+    get_default_ipv4_interface,
     logger,
     docker_compose_call,
     download_url_text,
-    get_public_ip_address,
-    get_lan_ip_address,
+    get_public_ipv4_egress_address,
     DockerComposeStack,
     resolve_public_dns,
     get_project_dir,
@@ -120,7 +119,7 @@ class App:
             raise HubError(f"whoami server returned nonmatching hostname (correct is {expected_hostname!r}): {hostname!r}")
         logger.debug(f"test_whoami_port_connection: whoami server at {remote_host}: {remote_port} responded correctly")
 
-    def test_server_traefik_ports(self, public_ip_address: str):
+    def test_server_traefik_ports(self, public_ip_address: IPv4Address):
         """Test whether all traefik ports are available to listen on and
         in the case of 7080 and 7443, are properly port-forwarded from the gateway router
 
@@ -134,7 +133,7 @@ class App:
         random_hostname_suffix = "-" + token_bytes(16).hex()
         expected_hostname = f"port-test{random_hostname_suffix}"
 
-        lan_ip_address = get_lan_ip_address()
+        lan_ip_address = get_lan_ipv4_address()
 
         stack_created = False
 
@@ -151,13 +150,13 @@ class App:
                 time.sleep(4.0)   # let services start up
                 for port in ports:
                     try:
-                        self.test_whoami_port_connection(lan_ip_address, port, expected_hostname=expected_hostname)
+                        self.test_whoami_port_connection(str(lan_ip_address), port, expected_hostname=expected_hostname)
                         print(f"Test for hub LAN port {lan_ip_address}:{port} passed!", file=sys.stderr)
                     except Exception as e:
                         raise HubError(f"Test for hub LAN port {lan_ip_address}:{port} failed") from e
                 for port in [ 80, 443 ]:
                     try:
-                        self.test_whoami_port_connection(public_ip_address, port, expected_hostname=expected_hostname)
+                        self.test_whoami_port_connection(str(public_ip_address), port, expected_hostname=expected_hostname)
                         print(f"Test for Gateway public port {public_ip_address}:{port} forwarding to {lan_ip_address}:{port+7000} passed!", file=sys.stderr)
                     except Exception as e:
                         raise(f"Test for Gateway public port {public_ip_address}:{port} forwarding to {lan_ip_address}:{port+7000} failed") from e
@@ -170,8 +169,8 @@ class App:
     def test_public_dns_name(self, hostname: str):
         """Test whether a public DNS name resolves to the public IP address"""
         print(f"Testing whether public DNS name {hostname} resolves to public IP address", file=sys.stderr)
-        public_ip_address = get_public_ip_address()
-        resolved_ip_addresses = resolve_public_dns(hostname)
+        public_ip_address = get_public_ipv4_egress_address()
+        resolved_ip_addresses = cast(List[IPv4Address], resolve_public_dns(hostname, allow_ipv6=False))
         if not public_ip_address in resolved_ip_addresses:
             raise HubError(f"Public DNS name {hostname} resolves to {resolved_ip_addresses}, not {public_ip_address}")
         if len(resolved_ip_addresses) > 1:
@@ -199,13 +198,13 @@ class App:
 
         self.hub_test_compose_file = os.path.join(get_project_bin_data_dir(), "hub_port_test", "docker-compose.yml")
 
-        local_public_ip_addr = get_public_ip_address()
+        local_public_ip_addr = get_public_ipv4_egress_address()
         if local_public_ip_addr != stable_public_ip_address:
             print(f"WARNING: Gateway's Public IP address {local_public_ip_addr} "
                   f"does not match stable public IP address {stable_public_ip_address}", file=sys.stderr)
-        gateway_lan_ip_addr = get_gateway_lan_ip_address()
-        lan_ip_addr = get_lan_ip_address()
-        default_interface = get_default_interface()
+        gateway_lan_ip_addr = get_gateway_lan_ip4_address()
+        lan_ip_addr = get_lan_ipv4_address()
+        default_interface = get_default_ipv4_interface()
         username = os.environ["USER"]
 
         print(f"Testing network prerequisites for this project", file=sys.stderr)

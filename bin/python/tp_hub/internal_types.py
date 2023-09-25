@@ -31,6 +31,12 @@ else:
   StrOrBytesPath = Any
 
 
+from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
+IPAddress = Union[IPv4Address, IPv6Address]
+IPv4AddressOrStr = Union[IPv4Address, str, int]
+IPv6AddressOrStr = Union[IPv6Address, str]
+IPAddressOrStr = Union[IPAddress, str, int]
+
 from enum import Enum
 from types import TracebackType, NoneType
 from typing_extensions import Self

@@ -32,10 +32,10 @@ from tp_hub import (
     create_docker_network,
     create_docker_volume,
     should_run_with_group,
-    get_public_ip_address,
-    get_gateway_lan_ip_address,
-    get_lan_ip_address,
-    get_default_interface,
+    get_public_ipv4_egress_address,
+    get_gateway_lan_ip4_address,
+    get_lan_ipv4_address,
+    get_default_ipv4_interface,
     get_project_dir,
     logger,
   )
@@ -87,10 +87,10 @@ def main() -> int:
         with open(config_yml_file, 'w', encoding='utf-8') as fd:
             fd.write(config_yml_content)
 
-    public_ip_addr = get_public_ip_address()
-    gateway_lan_ip_addr = get_gateway_lan_ip_address()
-    lan_ip_addr = get_lan_ip_address()
-    default_interface = get_default_interface()
+    public_ip_addr = get_public_ipv4_egress_address()
+    gateway_lan_ip_addr = get_gateway_lan_ip4_address()
+    lan_ip_addr = get_lan_ipv4_address()
+    default_interface = get_default_ipv4_interface()
 
     print(file=sys.stderr)
     print(f"Local hub config file: {config_yml_file}", file=sys.stderr)

@@ -21,7 +21,7 @@ from io import StringIO
 from .internal_types import *
 from .internal_types import _CMD, _FILE, _ENV
 from .pkg_logging import logger
-from project_init_tools import atomic_mv
+from .util import atomic_mv
 
 def x_dotenv_loads(content: str) -> OrderedDict[str, str]:
     """
@@ -67,7 +67,7 @@ def x_dotenv_save_file(pathname: str, data: Dict[str, str], mode: int=0o600) -> 
     try:
         with open(os.open(tmp_pathname, os.O_CREAT | os.O_WRONLY, mode), 'w', encoding="utf-8") as fd:
             fd.write(content)
-        atomic_mv(tmp_pathname, pathname)
+        atomic_mv(tmp_pathname, pathname, force=True)
     finally:
         if os.path.exists(tmp_pathname):
             os.unlink(tmp_pathname)
@@ -80,3 +80,4 @@ def x_dotenv_update_file(pathname: str, update_data: Mapping[str, str], mode: in
     result = data.update(update_data)
     x_dotenv_save_file(pathname, data, mode=mode)
     return result
+

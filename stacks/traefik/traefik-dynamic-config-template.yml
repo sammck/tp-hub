@@ -1,0 +1,18 @@
+# Interpolated template for Traefik YAML dynamic config file.
+#
+# This file contains environment variable interpolations that are expanded into
+# traefik-dynamic-config.yml by `hub build`, in a manner similar to the way docker-compose
+# expands environment variables in docker-compose.yml.
+#
+# Changes to traefik configuration should be made in this file, then expanded with `hub build`
+#
+http:
+  middlewares:
+    # A middleware that only accepts proxied requests from cloudflared tunnel, and populates
+    # X-Forwarded-For and X-Forwarded-Proto from cloudflare headers.
+    cloudflare-trust:
+      plugin:
+        cloudflarewarp:
+          disableDefault: false
+          trustip:
+            - "172.0.0.0/8"   # Requests through cloudflared tunnel come from a bridge adapter, seems to have a 172.* address. Verify later.

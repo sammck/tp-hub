@@ -1,0 +1,94 @@
+# Interpolated template for Traefik YAML config file.
+#
+# This file contains environment variable interpolations that are expanded into
+# traefik-config.yml by `hub build`, in a manner similar to the way docker-compose
+# expands environment variables in docker-compose.yml.
+#
+# Changes to traefik configuration should be made in this file, then expanded with `hub build`
+#
+log:
+  level: "${TRAEFIK_LOG_LEVEL}"
+
+acessLog:
+  format: json
+
+api:
+  dashboard: true    # Run a traefik dashboard on http://<this-host>:8080
+  # insecure: true
+  debug: true
+
+providers:
+  file:                                                           # A dynamic config file provider for dynamic config provided at launch time.
+                                                                  # Other than what's in this file, dynamic config comes from Docker container
+                                                                  # labels
+    filename: /etc/traefik/traefik-dynamic.yml
+
+  docker:                                                         # Monitor docker container creation and automatically reverse-proxy to configured containers
+    network: traefik                                              # Connect to proxied backend service containers through the "traefik" docker network. This ensures that
+                                                                  # there will be an IP route to the container's IP address if the container is on multiple
+                                                                  # networks.  Without it, traefik may pick an IP address of the container that is on another
+                                                                  # docker network which is not reachable from traefik's container.
+    exposedByDefault: false                                       # require a "traefik.enable=true" label on containers behind reverse-proxy
+
+entryPoints:
+  web:                                                            # Public http:// entrypoint proxied by cloudflare
+    address: ":7080"
+    http:
+      middlewares:
+        - cloudflare-trust@file
+  websecure:                                                      # Public https:// and http:// entrypoint proxied by cloudflare (SSL already terminated)
+                                                                  # X-Forwarded-For and X-Forwarded-Proto headers will be filled in to describe originating
+                                                                  # request.
+    address: ":7082"
+    http:
+      middlewares:
+        - cloudflare-trust@file
+  lanweb:                                                         # Private LAN-only http:// entrypoint. Exposed to LAN.
+    address: ":80"
+  lanwebsecure:                                                   # Private https:// entrypoint. Exposed to LAN.
+    address: ":443"
+    http:
+      tls: true
+      #  certResolver: "${DEFAULT_CERT_RESOLVER}"
+  landashboard:                                                   # Private LAN-only http://<any-host>:8080 entrypoint. Used for Traefik dashboard. Exposed to LAN.
+    address: ":8080"
+  portainerui:                                                    # Private LAN-only http://<any-host>:9000 entrypoint. Used for Portainer UI. Exposed to LAN.
+    address: ":9000"
+
+# certificatesResolvers:
+
+#   # "prod" certificate resolver uses real lets-encrypt certificates
+#   prod:
+#     acme:
+#       storage: /acme/acme_prod.json                               # ACME state must be preserved so we put it in a Docker volume
+#       email: ${LETSENCRYPT_OWNER_EMAIL_PROD}                      # tell lets-encrypt who owns the DNS domain
+#       httpChallenge:                                              # Use HTTP challenge protocol to verify ownership to lets-encrypt.
+#                                                                   #    lets-encrypt will send a challenge to http:<dns-name>:80/..."
+#                                                                   #    and traefik will respond with credentials. Then the cert will be issued.
+#         entryPoint: web
+
+#   # "staging" certificate resolver uses staging lets-encrypt certificates
+#   staging:
+#     acme:
+#       caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+#       storage: /acme/acme_staging.json                            # ACME state must be preserved so we put it in a Docker volume
+#       email: ${LETSENCRYPT_OWNER_EMAIL_STAGING}                   # tell lets-encrypt who owns the DNS domain
+#       httpChallenge:                                              # Use HTTP challenge protocol to verify ownership to lets-encrypt.
+#                                                                   #    lets-encrypt will send a challenge to http:<dns-name>:80/..."
+#                                                                   #    and traefik will respond with credentials. Then the cert will be issued.
+#         entryPoint: web
+
+experimental:
+  plugins:
+
+    # A middleware that will trust cloudflare upstream tunnel proxy IPs, and populate X-Forwarded-For with the
+    # IP from CF-Connecting-IP
+    cloudflarewarp:
+      moduleName: github.com/BetterCorp/cloudflarewarp
+      version: v1.3.0
+
+    # An authentication plugin that uses HTTP BasicAuth once, then stores a cookie.
+    # Can be used for simple website authentication that avoids repeated reauthentication.
+    trauth:
+      moduleName: github.com/leonjza/trauth
+      version: v1.4.3

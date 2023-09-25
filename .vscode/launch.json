@@ -19,6 +19,32 @@
                 "parent_dns_domain",
                 "mckelvie-home.com"
             ]
+        },
+        {
+            "name": "hub config",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "module": "tp_hub",
+            "args": [
+                "--tb",
+                "--log-level=debug",
+                "config"
+            ]
+        },
+        {
+            "name": "hub build",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "module": "tp_hub",
+            "args": [
+                "--tb",
+                "--log-level=debug",
+                "build"
+            ]
         }
     ]
 }

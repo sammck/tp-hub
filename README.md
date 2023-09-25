@@ -463,6 +463,8 @@ describing all of the received HTTP headers, the URL path, Traefik route, etc. I
   - `http://localhost/whoami`                       (Hub host only only) (for clients on hub host itself)
   - `http://127.0.0.1/whoami`                       (Hub host only only) (for clients on hub host itself)
 
+This list may vary depending on config settings.
+
 ## Make sure any new DNS names your stack will serve have been created
 If your stack will run on a DNS name not used by an existing stack, then you need to create a new DNS name *before* deploying the
 stack. In the case of this example, it will serve on `whoami.${PARENT_DNS_DOMAIN}`. We already created that record while we

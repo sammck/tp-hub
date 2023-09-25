@@ -25,9 +25,6 @@ version: "3.3"
 #                            in a docker-compose.yml file, each dollar-sign must be doubled. That is
 #                            automatically taken care of when the value is expanded from an environment
 #                            variable, as it is here.
-#    PORTAINER_CERT_RESOLVER
-#                            "prod" or "staging".  The certificate resolver to use for portainer.{PARENT_DNS_DOMAIN}
-#                                 "prod" uses real lets-encrypt certificates, "staging" uses staging lets-encrypt
 #    PORTAINER_DNS_NAME      The fully qualified public DNS domain that the Portainer web UI will run on.
 #                            There must be a DNS entry for this name that resolves to this network's public IP address.}
 #    PORTAINER_AGENT_SECRET  A secret string that is shared between portainer and portainer_agent.  This is used to
@@ -44,11 +41,9 @@ version: "3.3"
 #
 #    Entrypoint      Port   Description
 #    ----------      ----   ---------------------------------
-#    web             7080   Intended to serve public HTTP requests; public port 80 on the network's gateway
-#                             router should be port-forwarded to this port. Also used to serve challenge
-#                             requests from lets-encrypt to verify ownership of domain names.
-#    websecure       7443   Intended to serve public HTTPS requests; public port 443 on the network's gateway
-#                             router should be port-forwarded to this port.
+#    websecure       7082   Public https:// and http:// entrypoint proxied by cloudflare (SSL already terminated)
+#                             X-Forwarded-For and X-Forwarded-Proto headers will be filled in to describe originating
+#                             request.
 #    lanweb            80   Serves HTTP requests for LAN-local clients
 #    lanwebsecure     443   Serves HTTPS requests for LAN-local clients. to be used without certificate errors,
 #                             A public DNS name must resolve externally to this network's public IP address,
@@ -62,24 +57,9 @@ version: "3.3"
 #    http://${PORTAINER_DNS_NAME}           Redirects to https:// (private LAN only)
 #    http://<any-host>:9000                 Portainer UI (private LAN only)
 #
-# Portainer is only exposed on the LAN, but for HTTPS routes it requires a hostname that resolves publicly to this network's publid IP address. This
-# is the only way to get a valid lets-encrypt certificate for ${PORTAINER_DNS_NAME}. So by default, browser clients
-# will get "404 page not found" when they navigate to https://${PORTAINER_DNS_NAME}. There are 2 ways to make it work:
-#
-#  1. Add a /etc/hosts entry on each client that points ${PORTAINER_DNS_NAME} to this host's LAN IP address.
-#  2. Run a LAN-local DNS server that overrides the public DNS entries for ${PORTAINER_DNS_NAME} and points them to this host's LAN IP address,
-#     and use a LAN-local DHCP server to configure each client to use the LAN-local DNS server.
-#
-# If this is not feasible, you can still use portainer from inside the LAN without HTTPS by navigating to http://${HUB_LAN_IP}:9000.
-#
 # Prerequisites:
 #   Prerequisites common to all stacks (only done once when traefik is initially set up):
-#     * The traefik docker-compose stack has been installed and runs on this host, and can create certificates
-#       for DNS names that route to this network's public IP address.
-#     * A DNS CNAME entry has been created for ${PORTAINER_DNS_NAME} that resolves to this network's public IP address.
-#       You must create a DNS entry for ${PORTAINER_DNS_NAME} that resolves to your gateway router's public IP address
-#       *before* starting this stack. If you do not, lets-encrypt will be unable to validate the certificate request,
-#       and will eventually throttle you for a week at a time.
+#     * The traefik docker-compose stack has been installed and runs on this host.
 #     * A persistent docker volume "portainer_data" has been created before launching. This volume will contain all the
 #       persistent state associated with portainer, including its username/password has database and ACL
 #       information.  This volume should never be deleted unless you want to wipe portainer.
@@ -115,6 +95,8 @@ services:
   portainer:
     image: portainer/portainer-ce:${PORTAINER_VERSION:-2.19.0}
     extends:
+      # This deep-merges in the contents of injected-env-vars.yml (which are auto-generated)
+      # into this docker-compose.yml.
       file: injected-env-vars.yml
       service: injected_env_vars
     environment:
@@ -151,7 +133,6 @@ services:
       # -----------------------------------------
       # A router for https://${PORTAINER_DNS_NAME} in the local LAN entrypoint
       - "traefik.http.routers.portainer-https-shared-private.entrypoints=lanwebsecure"
-      - "traefik.http.routers.portainer-https-shared-private.tls.certresolver=${PORTAINER_CERT_RESOLVER}"
       - "traefik.http.routers.portainer-https-shared-private.rule=Host(`${PORTAINER_DNS_NAME}`)"
       # Redirect / to /portainer and strip prefix before forwarding to portainer
       - "traefik.http.routers.portainer-https-shared-private.middlewares=portainer-path-redirect,portainer-stripprefix"

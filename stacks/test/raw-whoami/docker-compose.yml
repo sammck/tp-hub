@@ -1,0 +1,20 @@
+version: "3.3"
+
+# docker-compose.yml configuration for a simple HTTP service container
+# that sits behind traefik and returns harmless information about the HTTP request. Useful
+# for debugging connectivity and Traefik configuration issues.
+#
+# WARNING: This stack exposes all HTTP client headers to any client that can access it. This
+#          includes cookies marked 'httpOnly' as well as headers added by reverse proxies
+#          before being forwarded to this service. In notrivial configurations it may pose
+#          a security risk. For example, JavaScript running in a browser in the same
+#          site domain will be able to read its httpOnly cookies, which can create a
+#          cross-site scripting attack risk even if this service is behind authentication.
+#          Do not use this stack in a production environment without careful consideration .
+#
+services:
+  raw-whoami:
+    image: "traefik/whoami"    # a simple, harmless HTTP server on port 80 that returns info about the HTTP request, such as headers
+    hostname: raw-whoam
+    ports:
+      - "8888:80"

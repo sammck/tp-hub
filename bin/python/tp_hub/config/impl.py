@@ -36,7 +36,9 @@ from ..util import (
     unindent_string_literal as usl,
     is_valid_email_address,
     is_valid_dns_name,
-    get_lan_ip_address,
+    get_lan_ipv4_address,
+    normalize_ipv4_address,
+    is_ipv4_address,
   )
 from ..version import __version__ as pkg_version
 from .yaml_config_settings_source import YAMLConfigSettingsSource
@@ -703,6 +705,252 @@ class HubSettings(BaseSettings):
             raise HubConfigError(f"Setting {sname}={v!r} must not be the root path ('/'); edit config.yml")
         return v
 
+    hub_lan_ipv4: str = Field(default=None, description=usl(
+        """The LAN-local IPv4 address of this hub, as will be used by other devices on the LAN to talk
+           to this hub. By default, this is the IPv4 address of the default gateway interface."""
+      ))
+    """The LAN-local IPv4 address of this hub, as will be used by other devices on the LAN to talk
+        to this hub. By default, this is the IPv4 address of the default gateway interface."""
+
+    @validator('hub_lan_ipv4', pre=True, always=True)
+    def hub_lan_ipv4_validator(cls, v, values, **kwargs):
+        sname = 'hub_lan_ipv4'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None or v == '':
+            v = str(get_lan_ipv4_address())
+        else:
+            if not is_ipv4_address(v):
+                raise HubConfigError(f"Setting {sname}={v!r} must be a valid IPv4 address; edit config.yml")
+            v = str(normalize_ipv4_address(v))
+        return v
+
+    hub_hostname: str = Field(default=None, description=usl(
+        """The LAN-local hostname of this hub, as will resolve to the LAN IP address of
+           this hub for other devices on the LAN. By default, this is the
+           result of calling gethostname()."""
+      ))
+    """The LAN-local hostname of this hub, as will resolve to the LAN IP address of
+        this hub for other devices on the LAN. By default, this is the
+        result of calling gethostname()."""
+
+    @validator('hub_hostname', pre=True, always=True)
+    def hub_hostname_validator(cls, v, values, **kwargs):
+        sname = 'hub_hostname'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None or v == '':
+            v = gethostname()
+        return v
+
+    hub_hostname2: str = Field(default=None, description=usl(
+        """A secondary LAN-local hostname for this hub, as will resolve to the LAN IP address of
+           this hub for other devices on the LAN. By default, this is f"{config.hub_hostname}.local".
+           This is included so that MacOS devices can find the hub with the automatically
+           appended ".local" suffix."""
+      ))
+    """A secondary LAN-local hostname for this hub, as will resolve to the LAN IP address of
+        this hub for other devices on the LAN. By default, this is f"{config.hub_hostname}.local".
+        This is included so that MacOS devices can find the hub with the automatically
+        appended ".local" suffix."""
+
+    @validator('hub_hostname2', pre=True, always=True)
+    def hub_hostname2_validator(cls, v, values, **kwargs):
+        sname = 'hub_hostname2'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None or v == '':
+            v = f"{values['hub_hostname']}.local"
+        return v
+
+    additional_shared_app_hostnames: List[str] = Field(default=None, description=usl(
+        """A list (or comma-delimited string) containing additional hostnames that the public shared app should match for
+          requests coming in via the public HTTP(S) entry-point. By default this is an empty list.
+          
+          Duplicate entries are removed."""
+      ))
+    """A list (or comma-delimited string) containing additional hostnames that the public shared app should match for
+        requests coming in via the public HTTP(sS) entry-point. By default this is an empty list.
+        
+        Duplicate entries are removed."""
+
+    @validator('additional_shared_app_hostnames', pre=True, always=True)
+    def additional_shared_app_hostnames_validator(cls, v, values, **kwargs):
+        sname = 'additional_shared_app_hostnames'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = []
+        elif isinstance(v, str):
+            v = [] if v == '' else v.split(',')
+        if not isinstance(v, list) or not all([isinstance(x, str) for x in v]):
+            raise HubConfigError(f"Setting {sname}={v!r} must be None, a list of strings, or a comma-delimited string; edit config.yml")
+        v = sorted(list(set(v)))
+        return v
+
+    shared_app_hostnames: List[str] = Field(default=None, description=usl(
+        """A list (or comma-delimited string) containing all the hostnames that the public shared app should match for
+          requests coming in via the public HTTP(S) entry-point. By default this is:
+            [
+                config.shared_app_dns_name,
+            ] + config.additional_shared_app_hostnames
+
+            Duplicate entries are removed.
+        """
+      ))
+    """A list (or comma-delimited string) containing all the hostnames that the public shared app should match for
+        requests coming in via the public HTTP(S) entry-point. By default this is:
+        [
+            config.shared_app_dns_name,
+        ] + config.additional_shared_app_hostnames
+    """
+    @validator('shared_app_hostnames', pre=True, always=True)
+    def shared_app_hostnames_validator(cls, v, values, **kwargs):
+        sname = 'shared_app_hostnames'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = []
+        elif isinstance(v, str):
+            v = [] if v == '' else v.split(',')
+        if not isinstance(v, list) or not all([isinstance(x, str) for x in v]):
+            raise HubConfigError(f"Setting {sname}={v!r} must be None, a list of strings, or a comma-delimited string; edit config.yml")
+        if len(v) == 0:
+            v = [
+                values['shared_app_dns_name'],
+              ] + values['additional_shared_app_hostnames']
+        v = sorted(list(set(v)))
+        return v
+
+    additional_shared_lan_app_https_hostnames: List[str] = Field(default=None, description=usl(
+        """A list (or comma-delimited string) containing additional hostnames that the private LAN shared app should match for
+           requests coming in via the private LAN HTTPS entry-point. By default this is an empty list.
+          
+           Duplicate entries are removed."""
+      ))
+    """A list (or comma-delimited string) containing additional hostnames that the private LAN shared app should match for
+       requests coming in via the private LAN HTTPS entry-point. By default this is an empty list.
+      
+       Duplicate entries are removed."""
+
+    @validator('additional_shared_lan_app_https_hostnames', pre=True, always=True)
+    def additional_shared_lan_app_hostnames_validator(cls, v, values, **kwargs):
+        sname = 'additional_shared_lan_app_https_hostnames'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = []
+        elif isinstance(v, str):
+            v = [] if v == '' else v.split(',')
+        if not isinstance(v, list) or not all([isinstance(x, str) for x in v]):
+            raise HubConfigError(f"Setting {sname}={v!r} must be None, a list of strings, or a comma-delimited string; edit config.yml")
+        v = sorted(list(set(v)))
+        return v
+
+    shared_lan_app_https_hostnames: List[str] = Field(default=None, description=usl(
+        """A list (or comma-delimited string) containing all the hostnames that the private LAN shared app should match for
+           requests coming in via the private LAN HTTPS entry-point. By default this is:
+            [
+                config.shared_lan_app_dns_name,
+            ] + config.shared_app_hostnames + config.additional_shared_lan_app_https_hostnames
+
+            Duplicate entries are removed.
+        """
+      ))
+    """A list (or comma-delimited string) containing all the hostnames that the private LAN shared app should match for
+       requests coming in via the private LAN HTTPS entry-point. By default this is:
+        [
+            config.shared_lan_app_dns_name,
+        ] + config.shared_app_hostnames + config.additional_shared_lan_app_https_hostnames
+
+        Duplicate entries are removed.
+    """
+
+    @validator('shared_lan_app_https_hostnames', pre=True, always=True)
+    def shared_lan_app_https_hostnames_validator(cls, v, values, **kwargs):
+        sname = 'shared_lan_app_https_hostnames'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = []
+        elif isinstance(v, str):
+            v = [] if v == '' else v.split(',')
+        if not isinstance(v, list) or not all([isinstance(x, str) for x in v]):
+            raise HubConfigError(f"Setting {sname}={v!r} must be None, a list of strings, or a comma-delimited string; edit config.yml")
+        if len(v) == 0:
+            v = [
+                values['shared_lan_app_dns_name'],
+              ] + values['shared_app_hostnames'] + values['additional_shared_lan_app_https_hostnames']
+        v = sorted(list(set(v)))
+        return v
+
+    additional_shared_lan_app_http_hostnames: List[str] = Field(default=None, description=usl(
+        """A list (or comma-delimited string) containing additional hostnames that the private LAN app should match for
+           requests coming in via the private LAN HTTP entry-point. By default this is an empty list.
+          
+           Duplicate entries are removed."""
+      ))
+    """A list (or comma-delimited string) containing additional hostnames that the private LAN app should match for
+       requests coming in via the private LAN HTTP entry-point. By default this is an empty list.
+      
+       Duplicate entries are removed."""
+
+    @validator('additional_shared_lan_app_http_hostnames', pre=True, always=True)
+    def additional_shared_lan_app_http_hostnames_validator(cls, v, values, **kwargs):
+        sname = 'additional_shared_lan_app_http_hostnames'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = []
+        elif isinstance(v, str):
+            v = [] if v == '' else v.split(',')
+        if not isinstance(v, list) or not all([isinstance(x, str) for x in v]):
+            raise HubConfigError(f"Setting {sname}={v!r} must be None, a list of strings, or a comma-delimited string; edit config.yml")
+        v = sorted(list(set(v)))
+        return v
+
+    shared_lan_app_http_hostnames: List[str] = Field(default=None, description=usl(
+        """A list (or comma-delimited string) containing all the hostnames that the private LAN shared app should match for
+          requests coming in via the private LAN HTTP entry-point. By default this is:
+
+            [
+                config.hub_hostname,
+                config.hub_hostname2,
+                config.hub_lan_ipv4,
+                'localhost',
+                '127.0.0.1',
+            ] + config.shared_lan_app_https_hostnames + config.shared_app_hostnames + config.additional_shared_lan_app_http_hostnames
+
+          Duplicate entries are removed.
+        """
+      ))
+    """A list (or comma-delimited string) containing all the hostnames that the private LAN shared app should match for
+      requests coming in via the private LAN HTTP entry-point. By default this is:
+
+        [
+            config.hub_hostname,
+            config.hub_hostname2,
+            config.hub_lan_ipv4,
+            'localhost',
+            '127.0.0.1',
+        ] + config.shared_lan_app_https_hostnames + config.shared_app_hostnames + config.additional_shared_lan_app_http_hostnames
+
+      Duplicate entries are removed.
+    """
+
+    @validator('shared_lan_app_http_hostnames', pre=True, always=True)
+    def shared_lan_app_http_hostnames_validator(cls, v, values, **kwargs):
+        sname = 'shared_lan_app_http_hostnames'
+        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
+        if v is None:
+            v = []
+        elif isinstance(v, str):
+            v = [] if v == '' else v.split(',')
+        if not isinstance(v, list) or not all([isinstance(x, str) for x in v]):
+            raise HubConfigError(f"Setting {sname}={v!r} must be None, a list of strings, or a comma-delimited string; edit config.yml")
+        if len(v) == 0:
+            v = [
+            values['hub_hostname'],
+            values['hub_hostname2'],
+            values['hub_lan_ipv4'],
+            'localhost',
+            '127.0.0.1',
+          ] + values['shared_lan_app_https_hostnames'] + values['shared_app_hostnames'] + values['additional_shared_lan_app_http_hostnames']
+        v = sorted(list(set(v)))
+        return v
+
     @classmethod    
     def _validate_env_dict(cls, field_name: str, v, values, base_env: Optional[Dict[str, str]]=None, **kwargs) -> Dict[str, str]:
         logger.debug(f"{field_name}_validator: v={v}, values={values}, kwargs={kwargs}")
@@ -784,16 +1032,19 @@ class HubSettings(BaseSettings):
            In addition to the variables explicitly added, the following variables are implicitly
            added if they are not set:
                 PARENT_DNS_DOMAIN               config.parent_dns_domain
-                DEFAULT_CERT_RESOLVER           config.default_cert_resolver
                 SHARED_APP_DNS_NAME             config.shared_app_dns_name
-                SHARED_APP_CERT_RESOLVER        config.shared_app_cert_resolver
                 SHARED_APP_DEFAULT_PATH         config.shared_app_default_path
+                SHARED_APP_HOSTNAMES            ','.join(config.shared_app_hostnames)
+                SHARED_APP_HOST_RULE            f"Host({', '.join('`' + x + '`' for x in config.shared_app_hostnames)})"
                 SHARED_LAN_APP_DNS_NAME         config.shared_lan_app_dns_name
-                SHARED_LAN_APP_CERT_RESOLVER    config.shared_lan_app_cert_resolver
                 SHARED_LAN_APP_DEFAULT_PATH     config.shared_lan_app_default_path
-                HUB_HOSTNAME                    The local hostname of this host
-                HUB_HOSTNAME2                   "${HUB_HOSTNAME}.local"
-                HUB_LAN_IP                      The LAN IP address of this host
+                SHARED_LAN_APP_HTTP_HOSTNAMES   ','.join(config.shared_lan_app_http_hostnames)
+                SHARED_LAN_APP_HTTP_HOST_RULE   f"Host({', '.join('`' + x + '`' for x in config.shared_lan_app_http_hostnames)})"
+                SHARED_LAN_APP_HTTPS_HOSTNAMES  ','.join(config.shared_lan_app_https_hostnames)
+                SHARED_LAN_APP_HTTPS_HOST_RULE  f"Host({', '.join('`' + x + '`' for x in config.shared_lan_app_https_hostnames)})"
+                HUB_HOSTNAME                    config.hub_hostname
+                HUB_HOSTNAME2                   config.hub_hostname2
+                HUB_LAN_IP                      config.hub_lan_ipv4
            """
     ))
     """Dictionary of environment variables that will be passed to all docker-compose stacks, including
@@ -805,16 +1056,19 @@ class HubSettings(BaseSettings):
        In addition to the variables explicitly added, the following variables are implicitly
        added if they are not set:
             PARENT_DNS_DOMAIN               config.parent_dns_domain
-            DEFAULT_CERT_RESOLVER           config.default_cert_resolver
             SHARED_APP_DNS_NAME             config.shared_app_dns_name
-            SHARED_APP_CERT_RESOLVER        config.shared_app_cert_resolver
             SHARED_APP_DEFAULT_PATH         config.shared_app_default_path
+            SHARED_APP_HOSTNAMES            ','.join(config.shared_app_http_hostnames)
+            SHARED_APP_HOST_RULE            f"Host({', '.join('`' + x + '`' for x in config.shared_app_http_hostnames)})"
             SHARED_LAN_APP_DNS_NAME         config.shared_lan_app_dns_name
-            SHARED_LAN_APP_CERT_RESOLVER    config.shared_lan_app_cert_resolver
             SHARED_LAN_APP_DEFAULT_PATH     config.shared_lan_app_default_path
-            HUB_HOSTNAME                    The local hostname of this host
-            HUB_HOSTNAME2                   "${HUB_HOSTNAME}.local"
-            HUB_LAN_IP                      The LAN IP address of this host
+            SHARED_LAN_APP_HTTP_HOSTNAMES   ','.join(config.shared_lan_app_http_hostnames)
+            SHARED_LAN_APP_HTTP_HOST_RULE   f"Host({', '.join('`' + x + '`' for x in config.shared_lan_app_http_hostnames)})"
+            SHARED_LAN_APP_HTTPS_HOSTNAMES  ','.join(config.shared_lan_app_https_hostnames)
+            SHARED_LAN_APP_HTTPS_HOST_RULE  f"Host({', '.join('`' + x + '`' for x in config.shared_lan_app_https_hostnames)})"
+            HUB_HOSTNAME                    config.hub_hostname
+            HUB_HOSTNAME2                   config.hub_hostname2
+            HUB_LAN_IP                      config.hub_lan_ipv4
        """
 
     @validator('base_stack_env', pre=True, always=True)
@@ -823,16 +1077,31 @@ class HubSettings(BaseSettings):
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
         v = cls._validate_env_dict(sname, v, values, **kwargs)
         cls._set_default_env_var(v, 'PARENT_DNS_DOMAIN', values['parent_dns_domain'])
-        cls._set_default_env_var(v, 'DEFAULT_CERT_RESOLVER', values['default_cert_resolver'])
         cls._set_default_env_var(v, 'SHARED_APP_DNS_NAME', values['shared_app_dns_name'])
-        cls._set_default_env_var(v, 'SHARED_APP_CERT_RESOLVER', values['shared_app_cert_resolver'])
         cls._set_default_env_var(v, 'SHARED_APP_DEFAULT_PATH', values['shared_app_default_path'])
+        cls._set_default_env_var(v, 'SHARED_APP_HOSTNAMES', ','.join(values['shared_app_hostnames']))
+
+        # example: Host(`${SHARED_APP_DNS_NAME}`,`myhostname`)
+        host_rule_params = ', '.join(f"`{x}`" for x in values['shared_app_hostnames'])
+        cls._set_default_env_var(v, 'SHARED_APP_HOST_RULE', f"Host({host_rule_params})")
+
         cls._set_default_env_var(v, 'SHARED_LAN_APP_DNS_NAME', values['shared_lan_app_dns_name'])
-        cls._set_default_env_var(v, 'SHARED_LAN_APP_CERT_RESOLVER', values['shared_lan_app_cert_resolver'])
         cls._set_default_env_var(v, 'SHARED_LAN_APP_DEFAULT_PATH', values['shared_lan_app_default_path'])
-        cls._set_default_env_var(v, 'HUB_HOSTNAME', lambda: gethostname())
-        cls._set_default_env_var(v, 'HUB_HOSTNAME2', f"{v['HUB_HOSTNAME']}.local")
-        cls._set_default_env_var(v, 'HUB_LAN_IP', lambda: get_lan_ip_address())
+        cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTP_HOSTNAMES', ','.join(values['shared_lan_app_http_hostnames']))
+
+        # example: Host(`${SHARED_LAN_APP_DNS_NAME}`,`myhostname`)
+        host_rule_params = ', '.join(f"`{x}`" for x in values['shared_lan_app_http_hostnames'])
+        cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTP_HOST_RULE', f"Host({host_rule_params})")
+
+        cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTPS_HOSTNAMES', ','.join(values['shared_lan_app_https_hostnames']))
+
+        # example: Host(`${SHARED_LAN_APP_DNS_NAME}`,`myhostname`)
+        host_rule_params = ', '.join(f"`{x}`" for x in values['shared_lan_app_https_hostnames'])
+        cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTPS_HOST_RULE', f"Host({host_rule_params})")
+
+        cls._set_default_env_var(v, 'HUB_HOSTNAME', values['hub_hostname'])
+        cls._set_default_env_var(v, 'HUB_HOSTNAME2', values['hub_hostname2'])
+        cls._set_default_env_var(v, 'HUB_LAN_IP', values['hub_lan_ipv4'])
         return cls._normalize_env_dict(sname, v)
 
     base_app_stack_env: Dict[str, str] = Field(default=None, description=usl(
@@ -864,10 +1133,7 @@ class HubSettings(BaseSettings):
            In addition to the variables explicitly added, the following variables are implicitly
            added if they are not set:
                     TRAEFIK_VERSION                     config.traefik_version
-                    TRAEFIK_CERT_RESOLVER               config.traefik_dashboard_cert_resolver
                     TRAEFIK_DNS_NAME                    config.traefik_dashboard_dns_name
-                    LETSENCRYPT_OWNER_EMAIL_PROD        config.letsencrypt_owner_email_prod
-                    LETSENCRYPT_OWNER_EMAIL_STAGING     config.letsencrypt_owner_email_staging
                     TRAEFIK_HTPASSWD                    config.traefik_dashboard_htpasswd
                     TRAEFIK_LOG_LEVEL                   DEBUG
         """
@@ -878,10 +1144,7 @@ class HubSettings(BaseSettings):
        In addition to the variables explicitly added, the following variables are implicitly
        added if they are not set:
                 TRAEFIK_VERSION                     config.traefik_version
-                TRAEFIK_CERT_RESOLVER               config.traefik_dashboard_cert_resolver
                 TRAEFIK_DNS_NAME                    config.traefik_dashboard_dns_name
-                LETSENCRYPT_OWNER_EMAIL_PROD        config.letsencrypt_owner_email_prod
-                LETSENCRYPT_OWNER_EMAIL_STAGING     config.letsencrypt_owner_email_staging
                 TRAEFIK_HTPASSWD                    config.traefik_dashboard_htpasswd
                 TRAEFIK_LOG_LEVEL                   DEBUG
     """
@@ -892,10 +1155,7 @@ class HubSettings(BaseSettings):
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
         v = cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
         cls._set_default_env_var(v, 'TRAEFIK_VERSION', values['traefik_version'])
-        cls._set_default_env_var(v, 'TRAEFIK_CERT_RESOLVER', values['traefik_dashboard_cert_resolver'])
         cls._set_default_env_var(v, 'TRAEFIK_DNS_NAME', values['traefik_dashboard_dns_name'])
-        cls._set_default_env_var(v, 'LETSENCRYPT_OWNER_EMAIL_PROD', values['letsencrypt_owner_email_prod'])
-        cls._set_default_env_var(v, 'LETSENCRYPT_OWNER_EMAIL_STAGING', values['letsencrypt_owner_email_staging'])
         cls._set_default_env_var(v, 'TRAEFIK_HTPASSWD', values['traefik_dashboard_htpasswd'])
         cls._set_default_env_var(v, 'TRAEFIK_LOG_LEVEL', 'DEBUG')
         v['TRAEFIK_LOG_LEVEL'] = v['TRAEFIK_LOG_LEVEL'].upper()
@@ -935,7 +1195,6 @@ class HubSettings(BaseSettings):
            In addition to the variables explicitly added, the following variables are implicitly
            added if they are not set:
                     PORTAINER_VERSION                  config.portainer_version
-                    PORTAINER_CERT_RESOLVER            config.portainer_cert_resolver
                     PORTAINER_DNS_NAME                 config.portainer_dns_name
                     PORTAINER_AGENT_SECRET             config.portainer_agent_secret
                     PORTAINER_INITIAL_PASSWORD_HASH    config.portainer_initial_password_hash
@@ -949,7 +1208,6 @@ class HubSettings(BaseSettings):
        In addition to the variables explicitly added, the following variables are implicitly
        added if they are not set:
                 PORTAINER_VERSION                  config.portainer_version
-                PORTAINER_CERT_RESOLVER            config.portainer_cert_resolver
                 PORTAINER_DNS_NAME                 config.portainer_dns_name
                 PORTAINER_AGENT_SECRET             config.portainer_agent_secret
                 PORTAINER_INITIAL_PASSWORD_HASH    config.portainer_initial_password_hash
@@ -963,7 +1221,6 @@ class HubSettings(BaseSettings):
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
         v = cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
         cls._set_default_env_var(v, 'PORTAINER_VERSION', values['portainer_version'])
-        cls._set_default_env_var(v, 'PORTAINER_CERT_RESOLVER', values['portainer_cert_resolver'])
         cls._set_default_env_var(v, 'PORTAINER_DNS_NAME', values['portainer_dns_name'])
         cls._set_default_env_var(v, 'PORTAINER_AGENT_SECRET', values['portainer_agent_secret'])
         cls._set_default_env_var(v, 'PORTAINER_INITIAL_PASSWORD_HASH', values['portainer_initial_password_hash'])

@@ -17,7 +17,6 @@ from functools import cache
 from ..internal_types import *
 from ..pkg_logging import logger
 from ..config import HubSettings, current_hub_settings
-from project_init_tools import atomic_mv
 
 very_old = datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 

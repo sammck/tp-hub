@@ -14,7 +14,7 @@ from ruamel.yaml.comments import CommentedMap
 
 from ..internal_types import *
 from ..pkg_logging import logger
-from ..util import rel_symlink, unindent_string_literal as usl
+from ..util import rel_symlink, unindent_string_literal as usl, atomic_mv
 from ..config import HubSettings, current_hub_settings
 from ..proj_dirs import get_project_dir, get_project_build_dir
 from ..x_dotenv import x_dotenv_save_file
@@ -35,6 +35,7 @@ def build_portainer(settings: Optional[HubSettings]=None):
     dst_compose_pathname = os.path.join(dst_dir, "docker-compose.yml")
     src_injected_vars_pathname = os.path.join(src_dir, "injected-env-vars.yml")
     dst_injected_vars_pathname = os.path.join(dst_dir, "injected-env-vars.yml")
+    dst_injected_vars_tmp_pathname = dst_injected_vars_pathname + '.tmp'
     dst_compose_pathname = os.path.join(dst_dir, "docker-compose.yml")
     src_env_pathname = os.path.join(src_dir, ".env")
     dst_env_pathname = os.path.join(dst_dir, ".env")
@@ -54,7 +55,7 @@ def build_portainer(settings: Optional[HubSettings]=None):
         assert isinstance(v, str)
         if '$' in v:
             injected_vars[k] = v.replace('$ ', '$$ ')
-    x_dotenv_save_file(dst_env_pathname, env)
+    x_dotenv_save_file(dst_env_pathname, env, mode=0o400)
     ryaml = YAML()
     injected_vars_data= CommentedMap()
     injected_vars_data.yaml_set_start_comment(usl(
@@ -70,11 +71,18 @@ def build_portainer(settings: Optional[HubSettings]=None):
     for k in sorted(injected_vars.keys()):
         v = injected_vars[k]
         environment[k] = v
-    with open(
-            os.open(dst_injected_vars_pathname, os.O_CREAT | os.O_WRONLY, 0o600),
-            'w',
-            encoding='utf-8',
-          ) as fd:
-        ryaml.dump(injected_vars_data, fd)
+    if os.path.exists(dst_injected_vars_tmp_pathname):
+        os.unlink(dst_injected_vars_tmp_pathname)
+    try:
+        with open(
+                os.open(dst_injected_vars_tmp_pathname, os.O_CREAT | os.O_WRONLY, 0o400),
+                'w',
+                encoding='utf-8',
+            ) as fd:
+            ryaml.dump(injected_vars_data, fd)
+        atomic_mv(dst_injected_vars_tmp_pathname, dst_injected_vars_pathname, force=True)
+    finally:
+        if os.path.exists(dst_injected_vars_tmp_pathname):
+            os.unlink(dst_injected_vars_tmp_pathname)
 
     logger.info("Portainer build complete")
