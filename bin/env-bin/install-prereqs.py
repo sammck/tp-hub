@@ -42,6 +42,40 @@ from tp_hub import (
 
 from tp_hub.config.config_yaml_generator import generate_settings_yaml
 
+from project_init_tools.os_packages import update_gpg_keyring, PackageList, update_apt_sources_list, update_and_install_os_packages
+
+from project_init_tools.util import (
+    command_exists,
+    get_linux_distro_name,
+    should_run_with_group,
+)
+
+
+def install_cloudflared(force: bool=False) -> None:
+    if force or not command_exists("cloudflared"):
+        print("Installing cloudflared")
+
+        cloudflare_keyring_file = "/usr/share/keyrings/cloudflare-main.gpg"
+
+        update_gpg_keyring(
+            "https://pkg.cloudflare.com/cloudflare-main.gpg",
+            cloudflare_keyring_file,
+        )
+
+        update_apt_sources_list(
+            "/etc/apt/sources.list.d/cloudflared.list",
+            cloudflare_keyring_file,
+            "https://pkg.cloudflare.com/cloudflared",
+            get_linux_distro_name(),
+            "main")
+
+        update_and_install_os_packages( [ "cloudflared" ] )
+
+        if not command_exists("cloudflared"):
+            raise RuntimeError("cloudflared command still not available after installation!")
+
+        print("cloudflared package installed successfully")
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install prerequisites for this project")
 
@@ -69,6 +103,9 @@ def main() -> int:
     # Install aws-cli
     if not aws_cli_is_installed() or args.force:
         install_aws_cli(force=force)
+
+    # Install cloudflared
+    install_cloudflared(force=force)
 
     # Create the "traefik" network if it doesn't exist:
     create_docker_network("traefik")

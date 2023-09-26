@@ -1,5 +1,6 @@
 .env
 .venv/
+/.cloudflare/
 /build/
 /trash/
 *.pyc
@@ -7,4 +8,3 @@ __pycache__/
 /config.yml
 .mypy_cache/
 report.xml
-

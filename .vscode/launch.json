@@ -45,6 +45,17 @@
                 "--log-level=debug",
                 "build"
             ]
+        },
+        {
+            "name": "install prereqs",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "program": "${workspaceFolder}/bin/env-bin/install-prereqs.py",
+            "args": [
+                "--loglevel=debug"
+            ]
         }
     ]
 }
