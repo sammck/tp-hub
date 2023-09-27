@@ -310,7 +310,7 @@ def main() -> int:
                 should_create = prompt_yes_no(f"Tunnel '{tunnel_name}' is not currently configured on Cloudflare. Create it now?", default=True)
                 if not should_create:
                     continue
-                sudo_check_call_stderr_exception(["cloudflared", "tunnel", "create", tunnel_name], use_sudo=False).decode('utf-8')
+                sudo_check_call_stderr_exception(["cloudflared", "tunnel", "create", tunnel_name], use_sudo=False)
                 tunnel_infos_content = sudo_check_output_stderr_exception(["cloudflared", "tunnel", "list", "-o", "json"], use_sudo=False).decode('utf-8')
                 tunnel_infos = json.loads(tunnel_infos_content)
                 tunnels_by_name = { tunnel["name"]: tunnel for tunnel in tunnel_infos }
