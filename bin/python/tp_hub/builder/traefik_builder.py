@@ -9,7 +9,7 @@ Builder tools for traefik
 """
 
 import os
-from envyaml import EnvYAML
+#from envyaml import EnvYAML
 import yaml
 
 from ..internal_types import *
