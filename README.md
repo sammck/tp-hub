@@ -45,8 +45,9 @@ There are two primary docker-compose stacks that are directly configured and lau
   It has the wonderful quality of automatically provisioning/deprovisioning reverse-proxy policy for
   services in docker containers when they are launched, modified, or stopped--based solely on configuration
   info attached to the container's docker labels. Once traefik is launched it generally never needs to be explicitly
-  managed again. Traefik also automatically provisions private keys and SSL certificates (using lets-encrypt) for services as they
-  are needed, and terminates HTTPS entrypoints so your service containers only need to implement HTTP.
+  managed again. Traefik can also automatically provisions private keys and SSL certificates (using lets-encrypt) for services as they
+  are needed, and terminates HTTPS entrypoints so your service containers only need to implement HTTP (tp-hub does
+  not use this capability, as Cloudflare is used to terminate SSL connections).).
   Traefik provides a web-based dashboard to view status and information related to the reverse-proxy.
   Traefik reverse-proxy has wide adoption, is open-source and free to use. 
 
@@ -68,14 +69,6 @@ restarted after host reboot or restart of the Docker daemon.
     on Ubuntu 22.04. However, if you skip auto-provisioning and manually install docker and docker-compose, the hub may well work
     on any Linux variant.
   - **Python 3.8+** is required by the bootstrapping scripts.
-  - The ability to forward ports 80 and 443 on a public IP address to ports 7080 and 7443, respectively, on the
-    tp-hub host. Generally, this means one of:
-    - A gateway router or VPN that you manage and which supports port forwarding (with port remapping), and a way to make the
-      tp-hub host have a fixed LAN IP address (either with a static IP address or via DHCP address reservation). This is the typical
-      solution for home networks, and the one described here, but might not be possible in certain ISP environments (e.g., running behind a 5G hotspot, or when you do not manage the network you are running in). 
-    - A port forwarding service or custom solution that provides an external public IP address and forwards ports 80 and 443 to a reverse tunneling agent running on the tp-hub host, which forwards connections to localhost ports 7080 and 7443, respectively. In this case, the public IP address used for outbound connections will be different than the public IP address used for inbound connections. Such a solution
-    can be made to work without a stable LAN IP address or network public address, and without administrative control over the local network. It can even work when the tp-hub host machine is moved between multiple networks (i.e., a mobile tp-hub). An example of how to set up such a port-forwarding solution is described [here](stacks/sshtunnel).
-      
 
 Installation
 =====
