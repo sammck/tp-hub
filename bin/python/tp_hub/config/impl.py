@@ -320,55 +320,6 @@ class HubSettings(BaseSettings):
             raise HubConfigError(f"Setting '{sname}'={v!r} must be a string of the form '<username>:<bcrypt-hashed-password>'; generate a username/password hash and set it with 'hub config set-traefik-password'")
         return v
 
-    stable_public_dns_name: str = Field(default=None, description=usl(
-        """A permanent DNS name (e.g., ddns.mydnsname.com) that has been configured to always
-        resolve to the current public IP address of your network's gateway router. Since typical
-        residential ISPs may change your public IP address periodically, it is usually necessary to
-        involve Dynamic DNS (DDNS) to make this work. Some gateway routers (e.g., eero) have DDNS
-        support built-in. Otherwise, you can run a DDNS client agent on any host inside your network,
-        and use a DDNS provider such as noip.com.
-        Your DDNS provider will provide you with an obscure but unique and stable (as long as you stay
-        with the DDNS provider) DNS name for your gateway's public IP address; e.g.,
-        "g1234567.eero.online". You should then create a permanent CNAME entry (e.g., ddns.mydnsname.com)
-        that points at the obscure DDNS name. That additional level of indirection makes an
-        easy-to-remember DNS name for your network's public IP address, and ensures that if your
-        provided obscure name ever changes, you will only have to update this one CNAME record to
-        be back in business.
-        All DNS names created by this project will be CNAME records that point to this DNS name.
-        As a convenience, if this value is a sinple subdomain name with no dots, it will be
-        automatically prepended to the value of admin_parent_dns_domain to form the full DNS name.
-        The default value is "ddns"."""
-      ))
-    """A permanent DNS name (e.g., ddns.mydnsname.com) that has been configured to always
-    resolve to the current public IP address of your network's gateway router. Since typical
-    residential ISPs may change your public IP address periodically, it is usually necessary to
-    involve Dynamic DNS (DDNS) to make this work. Some gateway routers (e.g., eero) have DDNS
-    support built-in. Otherwise, you can run a DDNS client agent on any host inside your network,
-    and use a DDNS provider such as noip.com.
-    Your DDNS provider will provide you with an obscure but unique and stable (as long as you stay
-    with the DDNS provider) DNS name for your gateway's public IP address; e.g.,
-    "g1234567.eero.online". You should then create a permanent CNAME entry (e.g., ddns.mydnsname.com)
-    that points at the obscure DDNS name. That additional level of indirection makes an
-    easy-to-remember DNS name for your network's public IP address, and ensures that if your
-    provided obscure name ever changes, you will only have to update this one CNAME record to
-    be back in business.
-    All DNS names created by this project will be CNAME records that point to this DNS name.
-    As a convenience, if this value is a sinple subdomain name with no dots, it will be
-    automatically prepended to the value of admin_parent_dns_domain to form the full DNS name.
-    The default value is "ddns"."""
-
-    @validator('stable_public_dns_name', pre=True, always=True)
-    def stable_public_dns_name_validator(cls, v, values, **kwargs):
-        sname = 'stable_public_dns_name'
-        logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
-        if v is None:
-            v = 'ddns'
-        if '.' not in v:
-            v = f"{v}.{values['admin_parent_dns_domain']}"
-        if not is_valid_dns_name(v):
-            raise HubConfigError(f"Setting {sname}={v!r} must be a valid DNS name or simple subdomain; edit config.yml")
-        return v
-
     traefik_dashboard_dns_name: str = Field(default=None, description=usl(
         """The DNS name that is used for the traefik dashboard. If this is a simple subdomain with no dots, it will
           be prepended to the value of admin_parent_dns_domain to form the full DNS name. The default value is "traefik"."""

@@ -33,6 +33,9 @@ from tp_hub import (
     is_valid_dns_name,
   )
 
+from tp_hub.config.config_yml import rewrite_roundtrip_config_yml
+
+
 from tp_hub.internal_types import *
 
 from project_init_tools import get_git_user_email
@@ -168,10 +171,14 @@ def main() -> int:
             break
         set_config_yml_property("hub.parent_dns_domain", parent_dns_domain)
 
+    rewrite_roundtrip_config_yml()
+
     traefik_dns_name = expand_dns_name(data.get("traefik_dashboard_dns_name") or 'traefik', parent_dns_domain)
     portainer_dns_name = expand_dns_name(data.get("portainer_dns_name") or 'portainer', parent_dns_domain)
     shared_app_dns_name = expand_dns_name(data.get("shared_app_dns_name") or 'hub', parent_dns_domain)
     whoami_dns_name = f"whoami.{parent_dns_domain}"
+
+
 
     print("\n============================================================", file=sys.stderr)
     print("============================================================", file=sys.stderr)

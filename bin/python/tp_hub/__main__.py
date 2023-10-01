@@ -417,37 +417,6 @@ class CommandHandler:
 
         return 0
 
-    def cmd_cloud_bare(self) -> int:
-        print("Error: A command is required\n", file=sys.stderr)
-        self._args.subparser.print_help(sys.stderr)
-        return 1
-
-    def cmd_cloud_dns_bare(self) -> int:
-        print("Error: A command is required\n", file=sys.stderr)
-        self._args.subparser.print_help(sys.stderr)
-        return 1
-
-    def cmd_cloud_dns_create_name(self) -> int:
-        dns_name: str = self._args.dns_name
-        dns_target: Optional[str] = self._args.dns_target
-        force: bool = self._args.force
-        settings = self.get_settings()
-        if dns_target is None:
-            dns_target = settings.stable_public_dns_name
-
-        if not '.' in dns_name:
-            dns_name = f"{dns_name}.{settings.parent_dns_domain}"
-
-        # TODO: Support other DNS providers
-        create_route53_dns_name(
-            self.get_aws(),
-            dns_name,
-            dns_target,
-            verify_public_ip=False,
-            allow_overwrite=force,
-          )
-        return 0
-    
     def cmd_install_prereqs(self) -> int:
         force: bool = self._args.force
 
@@ -539,42 +508,6 @@ class CommandHandler:
                             title='Commands',
                             description='Valid commands',
                             help=f'Additional help available with "{PROGNAME} <command-name> -h"')
-
-        # ======================= cloud
-
-        sp = subparsers.add_parser('cloud',
-                                description='''Manage DNS and other cloud services.''')
-        sp.set_defaults(func=self.cmd_cloud_bare)
-        cloud_subparsers = sp.add_subparsers(
-                            title='Subcommands',
-                            description='Valid subcommands',
-                            help=f'Additional help available with "{PROGNAME} cloud <subcommand-name> -h"')
-
-        # ======================= cloud dns
-
-        sp = cloud_subparsers.add_parser('dns',
-                                description='''Manage DNS via Route53 or other cloud services.''')
-        sp.set_defaults(func=self.cmd_cloud_dns_bare)
-        cloud_dns_subparsers = sp.add_subparsers(
-                            title='Subcommands',
-                            description='Valid subcommands',
-                            help=f'Additional help available with "{PROGNAME} cloud dns <subcommand-name> -h"')
-
-        # ======================= cloud dns create-name
-        sp = cloud_dns_subparsers.add_parser('create-name',
-                            help='''Use AWS Route53 or other cloud service to create a new CNAME or A record.
-                                    If the record already exists and matches, this command will silently succeed.''')
-        sp.add_argument('--force', "-f", action='store_true', default=False,
-                            help='Force replacement of the record if it already exists and is not matching.')
-        sp.add_argument('--target,', '-t', dest='dns_target',
-                            help='''The resolved target value for a 'CNAME' or 'A' DNS record to create. '''
-                                 '''If a valid IPV4 address, an 'A' record will be created. Otherwise, '''
-                                 '''a 'CNAME' record is created.  If a simple subdomain, f"{value}.{config.parent_dns_domain}" '''
-                                 '''will be used. By default, config.stable_public_dns_name is used.''')
-        sp.add_argument('dns_name',
-                            help='''The DNS name to create. If a simple subdomain, '''
-                                 '''f"{value}.{config.parent_dns_domain}" will be used''')
-        sp.set_defaults(func=self.cmd_cloud_dns_create_name, subparser=sp)
 
         # ======================= build
 

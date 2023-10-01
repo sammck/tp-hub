@@ -34,6 +34,17 @@
             ]
         },
         {
+            "name": "init-config",
+            "type": "python",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "program": "${workspaceFolder}/bin/env-bin/init-config.py",
+            "args": [
+                "--loglevel=debug",
+            ]
+        },
+        {
             "name": "hub build",
             "type": "python",
             "request": "launch",
