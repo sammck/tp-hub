@@ -17,6 +17,10 @@ version: "3.3"
 #    SHARED_APP_DEFAULT_PATH
 #                            The hostname-relative URL path (e.g., '/whoami') to redirect to for navigations to
 #                                the root path of ${SHARED_APP_DNS_NAME}.
+#    PARENT_DNS_DOMAIN       The parent (root) DNS domain under which all subdomains will be created.  This domain
+#                                 is managed by CloudFlare, and all CNAME records for subdomains (and the A record
+#                                 for the root domain itself) will proxy to the cloudflare tunnel.
+#                            The fully qualified public DNS domain that the private-only shared apps will run on.
 #    SHARED_LAN_APP_DNS_NAME 
 #                            The fully qualified public DNS domain that the private-only shared apps will run on.
 #    SHARED_LAN_APP_HTTP_HOST_RULE
@@ -146,6 +150,15 @@ services:
       - "traefik.http.routers.traefik-http-private-8080.rule=Path(`/`) || PathPrefix(`/api`,`/dashboard`)"
       - "traefik.http.routers.traefik-http-private-8080.service=api@internal"
       - "traefik.http.routers.traefik-http-private-8080.middlewares=traefik-auth"
+      # -----------------------------------------
+      # A router for http(s)://${PARENT_DNS_DOMAIN} (the root domain) on the public internet entrypoint, which redirects to http(s)://${SHARED_APP_DNS_NAME}
+      - "traefik.http.routers.public-root.entrypoints=websecure"
+      - "traefik.http.routers.public-root.rule=Host(`${PARENT_DNS_DOMAIN}`)"
+      - "traefik.http.routers.public-root.service=api@internal"
+      - "traefik.http.middlewares.public-root.redirectregex.regex=^(https?)://([^/]+)(/.*)?$$"
+      - "traefik.http.middlewares.public-root.redirectregex.replacement=$${1}://${SHARED_APP_DNS_NAME}$${3}"
+      - "traefik.http.middlewares.public-root.redirectregex.permanent=false"      
+      - "traefik.http.routers.public-root.middlewares=public-root"
       # -----------------------------------------
       # A router for http(s)://${SHARED_APP_DNS_NAME}/ (root path only) on the public internet entrypoint, which redirects to default app
       - "traefik.http.routers.traefik-https-shared-public-default-path.entrypoints=websecure"

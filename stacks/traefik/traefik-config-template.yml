@@ -9,7 +9,7 @@
 log:
   level: "${TRAEFIK_LOG_LEVEL}"
 
-acessLog:
+accessLog:
   format: json
 
 api:

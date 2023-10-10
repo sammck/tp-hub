@@ -330,6 +330,8 @@ def main() -> int:
     wildcard_name = f"*.{zone_name}"
     tunnel_cname = f"{tunnel_id}.cfargotunnel.com"
 
+    # create DNS wildcard record "*.{zone_name}" if needed
+
     need_dns_update = True
     dns_records: List[JsonableDict] = cf.zones.dns_records.get(zone_id, params={ "name": wildcard_name, "type": "CNAME" })
     if len(dns_records) > 0:
@@ -343,6 +345,24 @@ def main() -> int:
         print(f"Updating DNS wildcard record '{wildcard_name}' to proxy to '{tunnel_cname}' on Cloudflare", file=sys.stderr)
         cf.zones.dns_records.post(zone_id, data={ "name": wildcard_name, "type": "CNAME", "content": tunnel_cname, "proxied": True })
         print(f"DNS wildcard record '{wildcard_name}' successfully updated to proxy to '{tunnel_cname}' on Cloudflare", file=sys.stderr)
+
+    # create Root domain record "{zone_name}" if needed (allows http(s)://zone_name to work without a subdomain)
+    # CloudFlare allows us to create a virtual proxied CNAME record for the root domain, which internally is mapped
+    # to an A record at DNS query time, since DNS does not allow CNAME records for root domains.
+
+    need_root_dns_update = True
+    root_dns_records: List[JsonableDict] = cf.zones.dns_records.get(zone_id, params={ "name": zone_name, "type": "CNAME" })
+    if len(root_dns_records) > 0:
+        assert len(root_dns_records) == 1
+        root_dns_record = root_dns_records[0]
+        if root_dns_record['type'] == 'CNAME' and root_dns_record['name'] == zone_name and root_dns_record['content'] == tunnel_cname and root_dns_record['proxied'] == True:
+            print(f"DNS root record '{zone_name}' is already set to proxy to '{tunnel_cname}' on Cloudflare", file=sys.stderr)
+            need_root_dns_update = False
+
+    if need_root_dns_update:
+        print(f"Updating DNS root record '{zone_name}' to proxy to '{tunnel_cname}' on Cloudflare", file=sys.stderr)
+        cf.zones.dns_records.post(zone_id, data={ "name": zone_name, "type": "CNAME", "content": tunnel_cname, "proxied": True })
+        print(f"DNS root record '{zone_name}' successfully updated to proxy to '{tunnel_cname}' on Cloudflare", file=sys.stderr)
 
     home_dir = os.path.expanduser("~")
     home_cloudflared_dir = os.path.join(home_dir, ".cloudflared")
@@ -414,29 +434,39 @@ def main() -> int:
             "service": "ssh://localhost:22",
         })
 
+    # We create a special subdomain for testing the tunnel; this will work even if Traefik is not running.
     ingress_rules.append({
         "hostname": f"tunnel-test.{zone_name}",
         "service": "hello-world",
       })
 
-    
+    # Optionally expose Traefik dashboard (with basic authentication) to the Internet
     if expose_traefik:
         ingress_rules.append({
             "hostname": f"traefik.{zone_name}",
             "service": "http://localhost:8080",
           })
 
+    # Optionally expose Portainer web UI (with Portainer integrated authentication) to the Internet
     if expose_portainer:
         ingress_rules.append({
             "hostname": f"portainer.{zone_name}",
             "service": "http://localhost:9000",
           })
 
+    # The root domain f"{zone_name}" does not match "*.{zone_name}", so we need to add a separate rule for it.
+    ingress_rules.append({
+        "hostname": zone_name,
+        "service": "http://localhost:7082",
+      })
+
+    # Wildcard subdomains are matched here by "*.{zone_name}", which will handle all referenced subdomains.
     ingress_rules.append({
         "hostname": f"*.{zone_name}",
         "service": "http://localhost:7082",
       })
-
+    
+    # CloudFlare requires a catchall rule for unmatched hostnames. This should never be matched, but is required.
     ingress_rules.append({
         "service": "http_status:404",
       })
