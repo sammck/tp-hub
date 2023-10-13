@@ -33,7 +33,7 @@ on an Ubuntu/Debian host machine. It is suitable for installation on Raspberry P
 
 [Cloudflare](https://cloudflare.com/) is used to provision SSL certificates, terminate SSL/HTTP connections, manage public DNS, provide a public HTTP/HTTPS ingress, and securely tunnel inbound public requests through NAT/firewalls to the Traefik reverse proxy on the hub. It can also provide a secure way to SSH into your hub from the Internet. All of the Cloudflare features used by tp-hub are included in Cloudflare's free-tier offering.
 
-All services, including Traefik and Portainer themselves, run in docker containers and are managed with [docker-compose](https://docs.docker.com/compose/).
+All services other than `docker` and the `cloudflared` agent daemon, including Traefik and Portainer themselves, run in docker containers and are managed with [docker-compose](https://docs.docker.com/compose/).
  Individual service stacks can be easily configured to be visible to the LAN only, or to the public Internet.
 
 A new web service can be added simply by authoring a docker-compose.yml file and using Portainer's web UI to add a managed stack. All reverse-proxy configuration settings for each service (including hostname/path routing, public/private entrypoints, etc.) are expressed with labels attached
@@ -73,11 +73,6 @@ restarted after host reboot or restart of the Docker daemon.
 Installation
 =====
 
-## Register a public DNS Zone that you can administer
-To serve requests to the Internet on well-known, easy-to-remember names, and to enable certificate generation for SSL/HTTPS, you must be able to create your own public DNS records that resolve to your hub's public service HTTP/HTTPS IP address. Administration and serving of this DNS zone will be delegated to Cloudflare (see below). But before you can do that you need to register a public DNS domain, or already have administrative access to a dedicated public domain. We will call it `${PARENT_DNS_DOMAIN}` (e.g., `smith-vacation-home.com`). You can use Cloudflare, AWS Route53, Squarespace, GoDaddy or whatever registrar you like.
-
-Later, you will be asked to update the nameserver (NS) records for this domain to point at Cloudflare's nameservers.
-
 ## Create an account on Cloudflare
 If you haven't already, head over to https://dash.cloudflare.com/sign-up?lang=en-US and create an account. The free tier
 has all of the features needed by this project.
@@ -85,6 +80,11 @@ has all of the features needed by this project.
 ## Copy the Cloudflare Global API Key
 Go to https://dash.cloudflare.com/profile/api-tokens, and click on "View" next to "Global API Key". You will be prompted for
 your Cloudflare password.  Make a note of the displayed key value; you will use it later to configure Cloudflare for use with the hub.
+
+## Register a public DNS Zone that you can administer
+To serve requests to the Internet on well-known, easy-to-remember names, and to enable certificate generation for SSL/HTTPS, you must be able to create your own public DNS records that resolve to your hub's public service HTTP/HTTPS IP address. Administration and serving of this DNS zone will be delegated to Cloudflare (see below). But before you can do that you need to register a public DNS domain, or already have administrative access to a dedicated public domain. We will call it `${PARENT_DNS_DOMAIN}` (e.g., `smith-vacation-home.com`). You can use Cloudflare, AWS Route53, Squarespace, GoDaddy or whatever registrar you like.
+
+Later, you will be asked to update the nameserver (NS) records for this domain to point at Cloudflare's nameservers (this is automatically done for you if you registered the domain through CloudFlare).
 
 ## Copy this project directory tree onto the hub host machine
 A copy of this directory tree must be placed on the host machine. You can do this in several ways; for example:
@@ -189,11 +189,12 @@ Major steps performed by this script:
   - Guiding you to update DNS NS records to point at Cloudflare's DNS servers, and verifying that this was done correctly
   - Creating of A Cloudflare tunnel on the hub host
   - Creation of a wildcard DNS entry in the DNS zone that routes all subdomain requests to the newly created tunnel
+  - Creation of a root DNS entry that routes requests to the bare DNS Zone name to the newly created tunnel
   - Installation of the `cloudflared` tunnel daemon as a systemd service on the hub host
-  - Optionally, configuration of the `cloudflared` tunnel daemon to provide a secure SSH proxy through `https://portainer.${PARENT_DNS_DOMAIN}`
+  - Optionally, configuration of the `cloudflared` tunnel daemon to provide a secure SSH proxy through `https://ssh.${PARENT_DNS_DOMAIN}`
   - Configuration of the `cloudflared` tunnel daemon to serve a test page on `https://tunnel-test.${PARENT_DNS_DOMAIN}`
-  - Optionally, configuration of the `cloudflared` tunnel daemon to serve the Traefik dashboard on `https://traefik.${PARENT_DNS_DOMAIN}`
-  - Optionally, configuration of the `cloudflared` tunnel daemon to serve the Portainer UI on `https://portainer.${PARENT_DNS_DOMAIN}`
+  - Optionally, configuration of the `cloudflared` tunnel daemon to serve the Traefik dashboard publicly on `https://traefik.${PARENT_DNS_DOMAIN}` via Traefik at `http://localhost: 8080`
+  - Optionally, configuration of the `cloudflared` tunnel daemon to serve the Portainer UI publicly on `https://portainer.${PARENT_DNS_DOMAIN}` via Traefik at `http://localhost:9000`
   - Configuration of the `cloudflared` tunnel daemon to route all other HTTP(S) requests to Traefik at `http://localhost:7082`
   - Roubd-trip verification that the tunnel test page is being served.
 
@@ -237,7 +238,7 @@ you set up in previous steps. To prepare these derived files for use by docker-c
 hub build
 ```
 > **Note**
-> If you ever change the settings in `config.yml``, either directly or through `hub config set`, you
+> If you ever change the settings in `config.yml`, either directly or through `hub config set`, you
 > should rebuild the stack configurations with `hub build`.
 
 ## Launch Traefik reverse-proxy
@@ -255,7 +256,7 @@ hub traefik up
 ```
 
 Traefik will immediately begin serving requests on ports 80 and 443 on both the local hub-host and on the public
-Internet. It will also obtain a lets-encrypt SSL certificate for `traefik.${PARENT_DNS_DOMAIN}``.
+Internet. It will also obtain a lets-encrypt SSL certificate for `traefik.${PARENT_DNS_DOMAIN}`.
 However, no proxied services are yet exposed to the Internet, so requests to the public addresses will
 always receive `404 page not found` regardless of host name.
 
@@ -341,6 +342,8 @@ describing all of the received HTTP headers, the URL path, Traefik route, etc. I
   - `https://whoami.${PARENT_DNS_DOMAIN}`           (both on private LAN and public Internet)
   - `http://hub.${PARENT_DNS_DOMAIN}/whoami`        (both on private LAN and public internet)
   - `https://hub.${PARENT_DNS_DOMAIN}/whoami`       (both on private LAN and public internet)
+  - `http://${PARENT_DNS_DOMAIN}/whoami`            (both on private LAN and public internet)
+  - `https://${PARENT_DNS_DOMAIN}/whoami`           (both on private LAN and public internet)
   - `http://lanhub.${PARENT_DNS_DOMAIN}/whoami`     (Private LAN only, requires DNS override--see above)
   - `http://${HUB_LAN_IP}/whoami`                   (Private LAN only)
   - `http://${HUB_HOSTNAME}/whoami`                 (Private LAN only)
@@ -364,7 +367,8 @@ access Portainer.  Do that in whatever way is easiest for you. E.g., you can bro
 On a web browser in the private LAN, navigate to `http://${HUB_LAN_IP}:9000`, `http://${HUB_HOSTNAME}:9000`,  or `http://${HUB_HOSTNAME}.local:9000`
 as described above.
 
-If prompted, log into Portainer with username 'admin' and the Portainer password you configured during setup.
+If prompted, log into Portainer with username 'admin' and the Portainer password you configured during setup. It is recommended
+that you immediately change the temporary password assigned via `init-config`.`
 
 ## Navigate to the Portainer "stacks" page
 
@@ -407,6 +411,8 @@ In a browser on any host with Internet access, navigate to one of:
   - `https://whoami.${PARENT_DNS_DOMAIN}`           (public Internet)
   - `http://hub.${PARENT_DNS_DOMAIN}/whoami`        (public internet)
   - `https://hub.${PARENT_DNS_DOMAIN}/whoami`       (public internet)
+  - `http://${PARENT_DNS_DOMAIN}/whoami`            (public internet)
+  - `https://${PARENT_DNS_DOMAIN}/whoami`           (public internet)
 
 In a browser on any host inside the private LAN, navigate to:
 

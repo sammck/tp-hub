@@ -158,13 +158,20 @@ def main() -> int:
 
     parent_dns_domain = data.get("parent_dns_domain")
     if force or parent_dns_domain is None:
+        default_parent_dns_domain = parent_dns_domain
+        if default_parent_dns_domain is None:
+            cloudflare_params_file = os.path.join(get_project_dir(), ".cloudflare", "params.json")
+            if os.path.exists(cloudflare_params_file):
+                with open(cloudflare_params_file, "r") as f:
+                    cloudflare_params = json.load(f)
+                default_parent_dns_domain = cloudflare_params.get("zone_name")
         while True:
             parent_dns_domain = prompt_value(usl(
                 """A registered public "parent" DNS domain that you administer is required.
                    The domain should be served by cloudflare, and wildcard CNAME record f"*.{config.parent_dns_name}"
                    should be configured to forward to the cloadflared tunnel proxy running on this host.
                    Enter a registered parent DNS domain that you control
-                """), default=parent_dns_domain)
+                """), default=default_parent_dns_domain)
             if not is_valid_dns_name(parent_dns_domain):
                 print("Invalid domain name; please try again", file=sys.stderr)
                 continue
