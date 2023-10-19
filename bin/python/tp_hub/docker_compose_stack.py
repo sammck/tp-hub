@@ -457,6 +457,13 @@ class DockerComposeStack:
         options = [] if options is None else options
         self.call(["ps"] + options)
 
+    def has_running_containers(self) -> bool:
+        """
+        Return True if the stack has any running containers
+        """
+        text = self.call_output(["ps", "-q"])
+        return text.rstrip() != ""
+
     def __enter__(self) -> DockerComposeStack:
         """Enters a context for the stack, bringing it down if auto_down_on_enter is True,
            then bringing it up if auto_up is True.

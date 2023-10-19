@@ -17,6 +17,8 @@ import argparse
 import json
 import logging
 import getpass
+import re
+import subprocess
 
 from tp_hub.internal_types import *
 
@@ -25,6 +27,7 @@ from tp_hub import (
     Jsonable, JsonableDict, JsonableList,
     install_docker,
     docker_is_installed,
+    docker_call_output,
     install_docker_compose,
     docker_compose_is_installed,
     install_aws_cli,
@@ -52,6 +55,7 @@ from tp_hub import (
     DockerComposeStack,
   )
 
+from project_init_tools.util import sudo_Popen, CalledProcessErrorWithStderrMessage
 from tp_hub.route53_dns_name import create_route53_dns_name, get_aws, AwsContext
 
 PROGNAME = "hub"
@@ -146,6 +150,9 @@ class CommandHandler:
         ps_options: Optional[List[str]] = kwargs.pop('ps_options', None)
         self.get_portainer_stack(**kwargs).ps(ps_options)
 
+    def portainer_has_running_conainers(self, **kwargs) -> bool:
+        return self.get_portainer_stack(**kwargs).has_running_containers()
+
     def hub_up(self, **kwargs) -> None:
         self.traefik_up(**kwargs)
         self.portainer_up(**kwargs)
@@ -196,6 +203,49 @@ class CommandHandler:
 
     def cmd_portainer_ps(self) -> int:
         self.portainer_ps()
+        return 0
+    
+    _portainer_password_reset_re = re.compile(r'^.*Use the following password to login: (.*)$')
+
+    def cmd_portainer_reset_admin_password(self) -> int:
+        format_as_json = self._args.json
+        is_up = self.portainer_has_running_conainers()
+        if is_up:
+            self.portainer_down()
+
+        docker_call_output(["pull", "portainer/helper-reset-password"])
+
+        with sudo_Popen(             # type: ignore [misc]
+                ["docker", "run", "--rm", "-v", "portainer_data:/data", "portainer/helper-reset-password"],
+                use_sudo=False,
+                run_with_group="docker",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ) as proc:
+            (stdout_bytes, stderr_bytes) = cast(Tuple[bytes, bytes], proc.communicate())
+            exit_code = proc.returncode
+        if exit_code != 0:
+            stderr_s = stderr_bytes.decode('utf-8').rstrip()
+            raise CalledProcessErrorWithStderrMessage(exit_code, args, stderr=stderr_s, output=stdout_bytes)
+
+        text = stderr_bytes.decode('utf-8')
+        password: str
+        for line in text.splitlines():
+            m = self._portainer_password_reset_re.match(line)
+            if m:
+                password = m.group(1)
+                break
+        else:
+            print(text, file=sys.stderr)
+            raise HubError("Failed to reset Portainer admin password")
+        
+        if is_up:
+            self.portainer_up()
+
+        if format_as_json:
+            print(json.dumps(password))
+        else:
+            print(password)
         return 0
 
     def cmd_up(self) -> int:
@@ -693,6 +743,14 @@ class CommandHandler:
         sp = portainer_subparsers.add_parser('ps',
                                 description='''Display list of Portainer docker containers.''')
         sp.set_defaults(func=self.cmd_portainer_ps, subparser=sp)
+
+        # ======================= portainer reset-admin-password
+
+        sp = portainer_subparsers.add_parser('reset-admin-password',
+                                description='''Reset the admin password for an already-initialized Portainer service to a random value, and write the value to stdout.''')
+        sp.add_argument('--json', "-j", action='store_true', default=False,
+                            help='Output the password encoded as a JSON string.')
+        sp.set_defaults(func=self.cmd_portainer_reset_admin_password, subparser=sp)
 
         # ======================= up
 
