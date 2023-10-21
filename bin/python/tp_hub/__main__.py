@@ -215,8 +215,9 @@ class CommandHandler:
 
         docker_call_output(["pull", "portainer/helper-reset-password"])
 
+        cmd: List[str] = ["docker", "run", "--rm", "-v", "portainer_data:/data", "portainer/helper-reset-password"]
         with sudo_Popen(             # type: ignore [misc]
-                ["docker", "run", "--rm", "-v", "portainer_data:/data", "portainer/helper-reset-password"],
+                cmd,
                 use_sudo=False,
                 run_with_group="docker",
                 stdout=subprocess.PIPE,
@@ -226,7 +227,7 @@ class CommandHandler:
             exit_code = proc.returncode
         if exit_code != 0:
             stderr_s = stderr_bytes.decode('utf-8').rstrip()
-            raise CalledProcessErrorWithStderrMessage(exit_code, args, stderr=stderr_s, output=stdout_bytes)
+            raise CalledProcessErrorWithStderrMessage(exit_code, cmd, stderr=stderr_s, output=stdout_bytes)
 
         text = stderr_bytes.decode('utf-8')
         password: str
