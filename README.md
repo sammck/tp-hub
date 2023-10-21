@@ -187,7 +187,7 @@ Major steps performed by this script:
   - Logging in to Cloudflared using the Global API Key
   - Creation of a Cloudflared DNS Zone for your "${PARENT_DNS_DOMAIN}"
   - Guiding you to update DNS NS records to point at Cloudflare's DNS servers, and verifying that this was done correctly
-  - Creating of A Cloudflare tunnel on the hub host
+  - Creation of a Cloudflare tunnel on the hub host
   - Creation of a wildcard DNS entry in the DNS zone that routes all subdomain requests to the newly created tunnel
   - Creation of a root DNS entry that routes requests to the bare DNS Zone name to the newly created tunnel
   - Installation of the `cloudflared` tunnel daemon as a systemd service on the hub host
@@ -196,7 +196,7 @@ Major steps performed by this script:
   - Optionally, configuration of the `cloudflared` tunnel daemon to serve the Traefik dashboard publicly on `https://traefik.${PARENT_DNS_DOMAIN}` via Traefik at `http://localhost: 8080`
   - Optionally, configuration of the `cloudflared` tunnel daemon to serve the Portainer UI publicly on `https://portainer.${PARENT_DNS_DOMAIN}` via Traefik at `http://localhost:9000`
   - Configuration of the `cloudflared` tunnel daemon to route all other HTTP(S) requests to Traefik at `http://localhost:7082`
-  - Roubd-trip verification that the tunnel test page is being served.
+  - Round-trip verification that the tunnel test page is being served.
 
 ## Create an initial tp-hub config.yml file with minimal required configuration settings
 
@@ -256,8 +256,9 @@ hub traefik up
 ```
 
 Traefik will immediately begin serving requests on ports 80 and 443 on both the local hub-host and on the public
-Internet. It will also obtain a lets-encrypt SSL certificate for `traefik.${PARENT_DNS_DOMAIN}`.
-However, no proxied services are yet exposed to the Internet, so requests to the public addresses will
+Internet. If you chose to publicly expose traefik when you initialized cloudflare, then the traefik dashboard
+will be accessible at `https://traefik.{PARENT_DNS_DOMAIN}`. However, no other proxied services are yet
+exposed to the Internet, so requests to the public addresses will
 always receive `404 page not found` regardless of host name.
 
 ## Verify basic Traefik functionality
@@ -287,10 +288,6 @@ Verify that the tunnel is forwarding requests to Traefik:
 curl https://hub.${PARENT_DNS_DOMAIN}
 # you will receive "Found" due to a 302 redirect to the configured default shared app (/whoami/), which is expected
 ```
-
-Verify that the Traefik dashboard is functional by opening a web browser on any machine inside your LAN and navigating to
-http://${HUB_LAN_IP}:8080. The username is "admin" and the password is as you configured for the Traefik dashboard.
-
 
 ## Launch Portainer
 
@@ -354,10 +351,10 @@ describing all of the received HTTP headers, the URL path, Traefik route, etc. I
 This list may vary depending on config settings.
 
 ## Grab the docker-compose.yml for the example service
-The only file necessary to install this stack is the docker-compose.yml file in this project at `~/tp-hub/examples/whoami/docker-compose.yml`.
+The only file necessary to install this stack is the docker-compose.yml file in this project at `<project-dir>/examples/whoami/docker-compose.yml`.
 
 The easiest way to install it into Portainer is to copy it into the clipboard of the browser client on the private LAN that you will be using to
-access Portainer.  Do that in whatever way is easiest for you. E.g., you can browse to https://github.com/sammck/tp-hub/blob/main/examples/whoami/docker-compose.yml and copy it into the clipboard from there.
+access Portainer.  Do that in whatever way is easiest for you. E.g., you can browse to https://github.com/sammck/tp-hub/blob/stable/examples/whoami/docker-compose.yml and copy it into the clipboard from there.
 
 > **Note:**
 > For more sophisticated stacks Portainer is also able to clone a named github repo and run a docker-compose stack in it.
