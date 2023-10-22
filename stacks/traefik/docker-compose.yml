@@ -47,9 +47,9 @@ version: "3.3"
 #    portainerui     9000   Serves the Portainer UI on LAN-local http://<any-hostname>:9000.  Requires Portainer integrated authentication.
 #
 # Externally, this stack serves:
-#    http://${TRAEFIK_DNS_NAME}                      Traefik Dashboard (private LAN only)
+#    http://${TRAEFIK_DNS_NAME}                      Traefik Dashboard (private LAN only unless public Traefik is enabled)
 #    http://<any-host-name>:8080                     Traefik Dashboard (private LAN only)
-#    https://${TRAEFIK_DNS_NAME}                     Traefik Dashboard (private LAN only)
+#    https://${TRAEFIK_DNS_NAME}                     Traefik Dashboard (private LAN only unless public Traefik is enabled)
 #    http(s)://${SHARED_APP_DNS_NAME}                Shared app (public internet and private LAN).  Redirects to ${SHARED_APP_DEFAULT_PATH}
 #    http://${SHARED_LAN_APP_DNS_NAME}               Shared app (private LAN only).  Redirects to ${SHARED_LAN_APP_DEFAULT_PATH}
 #
@@ -58,8 +58,10 @@ version: "3.3"
 #   Prerequisites common to all stacks (only done once when traefik is initially set up):
 #     * A ${PARENT_DNS_DOMAIN} has been created, and NS records are pointing at a nameserver managed by cloudflare.
 #     * A cloudflared tunnel has been created, configured and started on this hub host to forward all HTTP and HTTPS
-#       requests on "*.${PARENT_DNS_DOMAIN}" to http://localhost:7082 on this host.
+#       requests on "${PARENT_DNS_DOMAIN}" and "*.${PARENT_DNS_DOMAIN}" to http://localhost:7082 on this host.
 #     * A wildcard DNS entry for "*.${PARENT_DNS_DOMAIN}" has been created on cloudflare DNS to proxy all requests to the tunnel
+#       mentioned above.
+#     * A root domain DNS entry for "${PARENT_DNS_DOMAIN}" has been created on cloudflare DNS to proxy all requests to the tunnel
 #       mentioned above.
 #     * A persistent docker network "traefik" has been created before launching. This network is used by traefik to proxy requests to
 #       backend service containers
@@ -70,14 +72,12 @@ services:
     #  Configured to:
     #
     #    Use docker network "traefik" for backend connections to services behind the reverse-proxy
-    #    Use lets-encrypt to automatically issue and renew SSL certificates. Persistence of lets-encrypt
-    #      certificate state is kept in docker volume "traefik_acme", which should never be deleted.
-    #    Serve public http(s):// on port 7082 (entrypoint "web").  This is proxied traffic from cloudflare tunnel.
+    #    Serve public https:// on port 7082 (entrypoint "websecure").  This is proxied traffic from cloudflare tunnel.
     #    Serve private (internal LAN only) http:// on port 80 (entrypoint "lanweb"). This port should NOT be exposed to the internet 
     #    Serve private (internal LAN only) https:// on port 443 (entrypoint "lansecureweb"). A self-signed certificate
     #      is used (not a valid certificate). This port should NOT be exposed to the internet.
     #    Serve a password-authenticated Traefik dashboard on http://${TRAEFIK_DNS_NAME}, https://${TRAEFIK_DNS_NAME},
-    #      and "http://<any-hostname>:8080", all for internal LAN only.
+    #      and "http://<any-hostname>:8080", all for internal LAN only unless public Traefik is enabled.
     #
     container_name: "traefik"
     image: "traefik:v${TRAEFIK_VERSION:-2.10.4}"
@@ -90,7 +90,9 @@ services:
                       # Endpoint "websecure"    -- Public HTTP and HTTPS (exposed to internet on ports 80 and 443 through cloudflare tunnel proxy.
                       #                            HTTPS terminated by cloudflare and proxied as HTTP. Middleware ensures X-Forwarded-For and
                       #                            X-Forwarded-Proto are set appropriately. This port is locked down to localhost since it is
-                      #                            only used by the cloudflare tunnel proxy on this host.
+                      #                            only used by the cloudflare tunnel proxy on this host. Note that Cloudflare is configured
+                      #                            to redirect all HTTP requests to https, so requests that make it to this port always originate
+                      #                            as HTTPS requests.
 
       - "80:80"       # Endpoint "lanweb"       -- Private http (exposed only to LAN)
       - "443:443"     # Endpoint "lanwebsecure" -- Private https (exposed only to LAN). Self-signed SSL certificate.
@@ -99,11 +101,12 @@ services:
       - "9000:9000"   # Endpoint "portainerui"  -- Private http (exposed only to LAN) on port 9000. Serves only the Portainer UI, with
                       #                            its own database-driven authentication.
     volumes:
-      - "/etc/localtime:/etc/localtime:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "traefik_acme:/acme"
-      - "./traefik-config.yml:/etc/traefik/traefik.yml:ro"
-      - "./traefik-dynamic-config.yml:/etc/traefik/traefik-dynamic.yml:ro"
+      - "/etc/localtime:/etc/localtime:ro"                                   # Use the host's timezone
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"                       # Allow traefik to read docker container metadata to read labels
+      - "traefik_acme:/acme"                                                 # Volume that contains acme.json, cached issued certificates from lets-encrypt
+                                                                             #     (not currently used)
+      - "./traefik-config.yml:/etc/traefik/traefik.yml:ro"                   # Traefik configuration file (generated by hub build)
+      - "./traefik-dynamic-config.yml:/etc/traefik/traefik-dynamic.yml:ro"   # Traefik dynamic configuration file (generated by hub build)
     labels:
       # The labels here on the main traefik container allow us to add dynamic reverse-proxy
       # configuration for the Traefik dashboard, as if it were launched separately. When

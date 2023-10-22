@@ -4,7 +4,7 @@
 # traefik-dynamic-config.yml by `hub build`, in a manner similar to the way docker-compose
 # expands environment variables in docker-compose.yml.
 #
-# Changes to traefik configuration should be made in this file, then expanded with `hub build`
+# Changes to traefik dynamic configuration should be made in this file, then expanded with `hub build`
 #
 http:
   middlewares:

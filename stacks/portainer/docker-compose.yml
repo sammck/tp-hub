@@ -26,15 +26,12 @@ version: "3.3"
 #                            automatically taken care of when the value is expanded from an environment
 #                            variable, as it is here.
 #    PORTAINER_DNS_NAME      The fully qualified public DNS domain that the Portainer web UI will run on.
-#                            There must be a DNS entry for this name that resolves to this network's public IP address.}
+#                            If LAN-only, There must be a DNS entry for this name that resolves to this network's public IP address.}
 #    PORTAINER_AGENT_SECRET  A secret string that is shared between portainer and portainer_agent.  This is used to
 #                                 authenticate the agent to portainer and vice-versa.
-#    PORTAINER_INJECTED_ENVIRONMENT_VARS
-#                            A YAML-encoded property list, indented 6 spaces on all but the first line,
-#                            listing additional environment variable assignments to pass into the container
 #    PORTAINER_LOG_LEVEL     The log level for Portainer.  One of "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "PANIC"
 #    PORTAINER_AGENT_LOG_LEVEL
-#                            The log level for Portainer.  One of "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "PANIC"
+#                            The log level for Portainer Agent.  One of "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "PANIC"
 #
 # Entrypoints:
 #    This stack uses the following Traefik reverse-proxy entrypoints:
@@ -50,11 +47,15 @@ version: "3.3"
 #                             but must resolve within the LAN to this host's LAN IP address. This can be done
 #                             by putting the LAN IP address in each client's /etc/hosts, or by hosting
 #                             a LAN-local DNS server that overrides the public entries.
-#    portainerui     9000   Serves the Portainer UI on LAN-local http://<any-hostname>:9000.
+#    portainerui     9000   Serves the Portainer UI on LAN-local http://<any-hostname>:9000/portainer.
 #
 # Externally, this stack serves:
-#    https://${PORTAINER_DNS_NAME}          Portainer UI (private LAN only). Requires a /hosts entry on each client, or a LAN-local DNS server.
-#    http://${PORTAINER_DNS_NAME}           Redirects to https:// (private LAN only)
+#    https://${PORTAINER_DNS_NAME}          Portainer UI (private LAN only unless configured for public portainer).
+#                                           To use on local LAN, Requires a /etc/hosts entry on each client, or a LAN-local DNS server.
+#                                           On LAN, a self-signed certificate is used, so the client will need to accept it. On
+#                                           the public internet, a valid certificate is provided by cloudflare.
+#    http://${PORTAINER_DNS_NAME}           On private LAN, serves portainer UI (requires /etc/hosts entry or local DNS).
+#                                           On public Internet, redirected to https:// by cloudflare. 
 #    http://<any-host>:9000                 Portainer UI (private LAN only)
 #
 # Prerequisites:

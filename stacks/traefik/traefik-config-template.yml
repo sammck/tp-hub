@@ -32,24 +32,28 @@ providers:
 
 entryPoints:
   web:                                                            # Public http:// entrypoint proxied by cloudflare
+                                                                  # Not currently used, since Cloudflare is configured to redirect http:// to https://,
+                                                                  # but could be used for a public http:// entrypoint.
     address: ":7080"
     http:
       middlewares:
-        - cloudflare-trust@file
+        - cloudflare-trust@file                                   # Trust cloudflare upstream tunnel proxy IPs, and populate X-Forwarded-For with the
+                                                                  # IP from CF-Connecting-IP
   websecure:                                                      # Public https:// and http:// entrypoint proxied by cloudflare (SSL already terminated)
                                                                   # X-Forwarded-For and X-Forwarded-Proto headers will be filled in to describe originating
                                                                   # request.
     address: ":7082"
     http:
       middlewares:
-        - cloudflare-trust@file
+        - cloudflare-trust@file                                   # Trust cloudflare upstream tunnel proxy IPs, and populate X-Forwarded-For with the
+                                                                  # IP from CF-Connecting-IP
   lanweb:                                                         # Private LAN-only http:// entrypoint. Exposed to LAN.
     address: ":80"
-  lanwebsecure:                                                   # Private https:// entrypoint. Exposed to LAN.
+  lanwebsecure:                                                   # Private https:// entrypoint. Exposed to LAN. self-signed cert.
     address: ":443"
     http:
       tls: true
-      #  certResolver: ...
+      #  certResolver: ...                                        # Self-signed cert for now.  Could be LetsEncrypt or manual cert in the future.
   landashboard:                                                   # Private LAN-only http://<any-host>:8080 entrypoint. Used for Traefik dashboard. Exposed to LAN.
     address: ":8080"
   portainerui:                                                    # Private LAN-only http://<any-host>:9000 entrypoint. Used for Portainer UI. Exposed to LAN.
@@ -66,6 +70,7 @@ experimental:
 
     # An authentication plugin that uses HTTP BasicAuth once, then stores a cookie.
     # Can be used for simple website authentication that avoids repeated reauthentication.
+    # We use this to secure the Traefik dashboard (Portainer has its own authentication)
     trauth:
       moduleName: github.com/leonjza/trauth
       version: v1.4.3
