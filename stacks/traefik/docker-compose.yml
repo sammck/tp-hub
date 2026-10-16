@@ -136,7 +136,7 @@ services:
       # A router for https://{TRAEFIK_DNS_NAME}
       # that only responds to LAN-local requests, and requires HTTP basic authentication.
       - "traefik.http.routers.traefik.entrypoints=lanwebsecure"
-      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DNS_NAME}`) && (Path(`/`) || PathPrefix(`/api`,`/dashboard`))"
+      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DNS_NAME}`) && (Path(`/`) || PathPrefix(`/api`) || PathPrefix(`/dashboard`))"
       - "traefik.http.routers.traefik.service=api@internal"
       - "traefik.http.routers.traefik.middlewares=traefik-auth"
       # -----------------------------------------
@@ -150,7 +150,7 @@ services:
       # A router for http://<any-hostname>:8080 that routes directly to the dashboard, and requires HTTP basic authentication.
       # LAN-local only.
       - "traefik.http.routers.traefik-http-private-8080.entrypoints=landashboard"
-      - "traefik.http.routers.traefik-http-private-8080.rule=Path(`/`) || PathPrefix(`/api`,`/dashboard`)"
+      - "traefik.http.routers.traefik-http-private-8080.rule=Path(`/`) || PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
       - "traefik.http.routers.traefik-http-private-8080.service=api@internal"
       - "traefik.http.routers.traefik-http-private-8080.middlewares=traefik-auth"
       # -----------------------------------------

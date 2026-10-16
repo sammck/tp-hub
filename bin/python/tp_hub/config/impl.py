@@ -49,6 +49,17 @@ from ..internal_types import *
 TRAEFIK_DEFAULT_VERSION = "2.10.4"
 PORTAINER_DEFAULT_VERSION = "2.19.0"
 
+def traefik_host_rule(hostnames: List[str]) -> str:
+    """Return a Traefik rule matching any of the given hostnames.
+
+    Uses one Host() matcher per hostname, OR'ed together, which is valid in both
+    Traefik v2 and v3 rule syntax (v3 Host() accepts only a single argument).
+    """
+    rule = ' || '.join(f"Host(`{x}`)" for x in hostnames)
+    if len(hostnames) > 1:
+        rule = f"({rule})"
+    return rule
+
 class HubConfigError(HubError):
     """An error related to hub configuration"""
     pass
@@ -776,13 +787,13 @@ class HubSettings(BaseSettings):
                 SHARED_APP_DNS_NAME             config.shared_app_dns_name
                 SHARED_APP_DEFAULT_PATH         config.shared_app_default_path
                 SHARED_APP_HOSTNAMES            ','.join(config.shared_app_hostnames)
-                SHARED_APP_HOST_RULE            f"Host({', '.join('`' + x + '`' for x in config.shared_app_hostnames)})"
+                SHARED_APP_HOST_RULE            traefik_host_rule(config.shared_app_hostnames)
                 SHARED_LAN_APP_DNS_NAME         config.shared_lan_app_dns_name
                 SHARED_LAN_APP_DEFAULT_PATH     config.shared_lan_app_default_path
                 SHARED_LAN_APP_HTTP_HOSTNAMES   ','.join(config.shared_lan_app_http_hostnames)
-                SHARED_LAN_APP_HTTP_HOST_RULE   f"Host({', '.join('`' + x + '`' for x in config.shared_lan_app_http_hostnames)})"
+                SHARED_LAN_APP_HTTP_HOST_RULE   traefik_host_rule(config.shared_lan_app_http_hostnames)
                 SHARED_LAN_APP_HTTPS_HOSTNAMES  ','.join(config.shared_lan_app_https_hostnames)
-                SHARED_LAN_APP_HTTPS_HOST_RULE  f"Host({', '.join('`' + x + '`' for x in config.shared_lan_app_https_hostnames)})"
+                SHARED_LAN_APP_HTTPS_HOST_RULE  traefik_host_rule(config.shared_lan_app_https_hostnames)
                 HUB_HOSTNAME                    config.hub_hostname
                 HUB_HOSTNAME2                   config.hub_hostname2
                 HUB_LAN_IP                      config.hub_lan_ipv4
@@ -800,13 +811,13 @@ class HubSettings(BaseSettings):
             SHARED_APP_DNS_NAME             config.shared_app_dns_name
             SHARED_APP_DEFAULT_PATH         config.shared_app_default_path
             SHARED_APP_HOSTNAMES            ','.join(config.shared_app_http_hostnames)
-            SHARED_APP_HOST_RULE            f"Host({', '.join('`' + x + '`' for x in config.shared_app_http_hostnames)})"
+            SHARED_APP_HOST_RULE            traefik_host_rule(config.shared_app_http_hostnames)
             SHARED_LAN_APP_DNS_NAME         config.shared_lan_app_dns_name
             SHARED_LAN_APP_DEFAULT_PATH     config.shared_lan_app_default_path
             SHARED_LAN_APP_HTTP_HOSTNAMES   ','.join(config.shared_lan_app_http_hostnames)
-            SHARED_LAN_APP_HTTP_HOST_RULE   f"Host({', '.join('`' + x + '`' for x in config.shared_lan_app_http_hostnames)})"
+            SHARED_LAN_APP_HTTP_HOST_RULE   traefik_host_rule(config.shared_lan_app_http_hostnames)
             SHARED_LAN_APP_HTTPS_HOSTNAMES  ','.join(config.shared_lan_app_https_hostnames)
-            SHARED_LAN_APP_HTTPS_HOST_RULE  f"Host({', '.join('`' + x + '`' for x in config.shared_lan_app_https_hostnames)})"
+            SHARED_LAN_APP_HTTPS_HOST_RULE  traefik_host_rule(config.shared_lan_app_https_hostnames)
             HUB_HOSTNAME                    config.hub_hostname
             HUB_HOSTNAME2                   config.hub_hostname2
             HUB_LAN_IP                      config.hub_lan_ipv4
@@ -822,23 +833,20 @@ class HubSettings(BaseSettings):
         cls._set_default_env_var(v, 'SHARED_APP_DEFAULT_PATH', values['shared_app_default_path'])
         cls._set_default_env_var(v, 'SHARED_APP_HOSTNAMES', ','.join(values['shared_app_hostnames']))
 
-        # example: Host(`${SHARED_APP_DNS_NAME}`,`myhostname`)
-        host_rule_params = ', '.join(f"`{x}`" for x in values['shared_app_hostnames'])
-        cls._set_default_env_var(v, 'SHARED_APP_HOST_RULE', f"Host({host_rule_params})")
+        # example: (Host(`hub.example.com`) || Host(`myhostname`))
+        cls._set_default_env_var(v, 'SHARED_APP_HOST_RULE', traefik_host_rule(values['shared_app_hostnames']))
 
         cls._set_default_env_var(v, 'SHARED_LAN_APP_DNS_NAME', values['shared_lan_app_dns_name'])
         cls._set_default_env_var(v, 'SHARED_LAN_APP_DEFAULT_PATH', values['shared_lan_app_default_path'])
         cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTP_HOSTNAMES', ','.join(values['shared_lan_app_http_hostnames']))
 
-        # example: Host(`${SHARED_LAN_APP_DNS_NAME}`,`myhostname`)
-        host_rule_params = ', '.join(f"`{x}`" for x in values['shared_lan_app_http_hostnames'])
-        cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTP_HOST_RULE', f"Host({host_rule_params})")
+        # example: (Host(`hub.example.com`) || Host(`myhostname`))
+        cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTP_HOST_RULE', traefik_host_rule(values['shared_lan_app_http_hostnames']))
 
         cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTPS_HOSTNAMES', ','.join(values['shared_lan_app_https_hostnames']))
 
-        # example: Host(`${SHARED_LAN_APP_DNS_NAME}`,`myhostname`)
-        host_rule_params = ', '.join(f"`{x}`" for x in values['shared_lan_app_https_hostnames'])
-        cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTPS_HOST_RULE', f"Host({host_rule_params})")
+        # example: (Host(`hub.example.com`) || Host(`myhostname`))
+        cls._set_default_env_var(v, 'SHARED_LAN_APP_HTTPS_HOST_RULE', traefik_host_rule(values['shared_lan_app_https_hostnames']))
 
         cls._set_default_env_var(v, 'HUB_HOSTNAME', values['hub_hostname'])
         cls._set_default_env_var(v, 'HUB_HOSTNAME2', values['hub_hostname2'])

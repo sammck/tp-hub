@@ -146,7 +146,7 @@ services:
       # -----------------------------------------
       # A router for http://<any-hostname>:9000
       - "traefik.http.routers.portainer-http-9000.entrypoints=portainerui"
-      - "traefik.http.routers.portainer-http-9000.rule=HostRegexp(`{host:.+}`)"   # matches any hostname
+      - "traefik.http.routers.portainer-http-9000.rule=PathPrefix(`/`)"   # matches any hostname (valid in both traefik v2 and v3 syntax)
       # Redirect / to /portainer and strip prefix before forwarding to portainer
       - "traefik.http.routers.portainer-http-9000.middlewares=portainer-path-redirect,portainer-stripprefix"
       # -----------------------------------------
