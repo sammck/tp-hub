@@ -396,6 +396,13 @@ will be expanded when the docker-compose.yml file is interpreted. However, for t
 variables have been injected into the Portainer runtime environment by tp-hub, so this stack will run perfectly without defining
 any additional values.
 
+> **Note**
+> Portainer only makes its own environment variables whose names begin with `PORTAINER_` available to the stacks it deploys.
+> tp-hub therefore injects its shared hub variables (the `portainer_runtime_env` config setting) with a `PORTAINER_` prefix.
+> Stacks must reference them by the prefixed name, e.g., `${PORTAINER_PARENT_DNS_DOMAIN}` or
+> `${PORTAINER_SHARED_APP_HOST_RULE}`. Avoid adding shared variables whose prefixed names collide with `PORTAINER_*`
+> variables that Portainer itself reads (e.g., `PORTAINER_FEATURE_FLAGS` or `PORTAINER_SETUP_TOKEN`).
+
 Finally, click on "Deploy the stack". Within a few seconds it will be up and running and actively serving requests. You
 will be taken to the "Stack details" page, where you can inspect the containers within the stack, view logs, resource usage
 graphs, and even open a Web-UI terminal into any container.

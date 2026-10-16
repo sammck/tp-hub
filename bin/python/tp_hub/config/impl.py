@@ -912,18 +912,22 @@ class HubSettings(BaseSettings):
         return cls._normalize_env_dict(sname, v)
 
     portainer_runtime_env: Dict[str, str] = Field(default=None, description=usl(
-        """Dictionary of environment variables that will be installed into Portainer's actual runtime
-           environment, and thus will be implicitly available for variable expansion in all
-           docker-compose stacks started by Portainer, as well as by any processes started
-           in the Portainer container.
+        """Dictionary of shared hub environment variables that will be made available for variable
+           expansion in all docker-compose stacks started by Portainer. Each variable is installed
+           into Portainer's runtime environment with a "PORTAINER_" prefix (Portainer only passes
+           PORTAINER_* variables through to stacks), so e.g. SHARED_APP_HOST_RULE is referenced in a
+           stack as ${PORTAINER_SHARED_APP_HOST_RULE}. Names must not collide with PORTAINER_*
+           variables that Portainer itself reads (e.g. PORTAINER_FEATURE_FLAGS, PORTAINER_SETUP_TOKEN).
     
            The actual used dict is created from base_app_stack_env, with this dict overriding.
         """
       ))
-    """Dictionary of environment variables that will be installed into Portainer's actual runtime
-       environment, and thus will be implicitly available for variable expansion in all
-       docker-compose stacks started by Portainer, as well as by any processes started
-       in the Portainer container.
+    """Dictionary of shared hub environment variables that will be made available for variable
+       expansion in all docker-compose stacks started by Portainer. Each variable is installed
+       into Portainer's runtime environment with a "PORTAINER_" prefix (Portainer only passes
+       PORTAINER_* variables through to stacks), so e.g. SHARED_APP_HOST_RULE is referenced in a
+       stack as ${PORTAINER_SHARED_APP_HOST_RULE}. Names must not collide with PORTAINER_*
+       variables that Portainer itself reads (e.g. PORTAINER_FEATURE_FLAGS, PORTAINER_SETUP_TOKEN).
 
        The actual used dict is created from base_app_stack_env, with this dict overriding.
     """

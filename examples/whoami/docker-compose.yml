@@ -13,17 +13,17 @@ version: "3.3"
 #          Do not use this stack in a production environment without careful consideration .
 #
 #  Environment Variables:
-#    SUBDOMAIN                  The DNS subdomain that is prepended to ${PARENT_DNS_DOMAIN} to get this service's
+#    SUBDOMAIN                  The DNS subdomain that is prepended to ${PORTAINER_PARENT_DNS_DOMAIN} to get this service's
 #                               DNS name.  Also used as the URL prefix for
 #                               path-based routing.
-#                               The fully qualified DNS name ${SUBDOMAIN}.${PARENT_DNS_DOMAIN} must be a
+#                               The fully qualified DNS name ${SUBDOMAIN}.${PORTAINER_PARENT_DNS_DOMAIN} must be a
 #                               valid DNS name that resolves to your gateway router's public IP address. *before*
 #                               starting this stack. If you do not, lets-encrypt will be unable to validate the
 #                               certificate request, and will eventually throttle you for a week at a time.
 #                               If omitted, defaults to 'whoami'. 
 #
 #    WHOAMI_HOSTNAME            The linux hostname used for the service container. Not related to the HTTP hostname
-#                               which is ${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}. This value is included in the whoami
+#                               which is ${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}. This value is included in the whoami
 #                               HTTP respose as "Hostname: ${WHOAMI_HOSTNAME:-${SUBDOMAIN:-whoami}}".
 #                               It is useful to distinguish between responses from multiple instances of this service container.
 #                               If omitted, defaults to ${SUBDOMAIN:-whoami}.
@@ -31,35 +31,35 @@ version: "3.3"
 #   === Variables below are provided by Portainer when launched on tp_hub, and do not need to be added to launch environment variables ===
 #
 #
-#    PARENT_DNS_DOMAIN         The parent DNS domain name.  The fully qualified DNS name will be "${SUBDOMAIN}.${PARENT_DNS_DOMAIN}".
+#    PORTAINER_PARENT_DNS_DOMAIN         The parent DNS domain name.  The fully qualified DNS name will be "${SUBDOMAIN}.${PORTAINER_PARENT_DNS_DOMAIN}".
 #
-#    SHARED_APP_HOST_RULE
+#    PORTAINER_SHARED_APP_HOST_RULE
 #                            The "Host" Traefik rule expression that will match all HTTP(S) hostnames for the shared public
 #                                 apps.
 #
-#    SHARED_LAN_APP_HTTP_HOST_RULE
+#    PORTAINER_SHARED_LAN_APP_HTTP_HOST_RULE
 #                            The "Host" Traefik rule expression that will match all HTTP hostnames for the private LAN-only
 #                                 apps.
 #
-#    SHARED_LAN_APP_HTTPS_HOST_RULE
+#    PORTAINER_SHARED_LAN_APP_HTTPS_HOST_RULE
 #                            The "Host" Traefik rule expression that will match all HTTPS hostnames for the private LAN-only
 #                                 apps.
 #
 # This stack serves:
-#    http://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}          (public internet or private LAN)  (hostname based)
-#    https://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}         (public internet or private LAN)  (hostname based)
-#    http://${SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}        (public internet or private LAN)  (path-based, handled by <common-lan-local-hostname> router; see below)
-#    https://${SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}       (public internet or private LAN)  (path-based)
-#    http://${SHARED_LAN_APP_DNS_NAME}/${SUBDOMAIN:-whoami}    (private LAN)                     (path-based, handled by <common-lan-local-hostname> router; see below)
-#    https://${SHARED_LAN_APP_DNS_NAME}/${SUBDOMAIN:-whoami}   (private LAN only)                (path-based)
+#    http://${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}          (public internet or private LAN)  (hostname based)
+#    https://${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}         (public internet or private LAN)  (hostname based)
+#    http://${PORTAINER_SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}        (public internet or private LAN)  (path-based, handled by <common-lan-local-hostname> router; see below)
+#    https://${PORTAINER_SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}       (public internet or private LAN)  (path-based)
+#    http://${PORTAINER_SHARED_LAN_APP_DNS_NAME}/${SUBDOMAIN:-whoami}    (private LAN)                     (path-based, handled by <common-lan-local-hostname> router; see below)
+#    https://${PORTAINER_SHARED_LAN_APP_DNS_NAME}/${SUBDOMAIN:-whoami}   (private LAN only)                (path-based)
 #    http://<common-lan-local-hostname>/${SUBDOMAIN:-whoami}   (private LAN only)                (path-based, multiple hostnames accepted; see below)
 #
 #    Where <common-lan-local-hostname> is one of:
-#       ${SHARED_APP_DNS_NAME}
-#       ${SHARED_LAN_APP_DNS_NAME}
-#       ${HUB_HOSTNAME}
-#       ${HUB_HOSTNAME2}
-#       ${HUB_LAN_IP}
+#       ${PORTAINER_SHARED_APP_DNS_NAME}
+#       ${PORTAINER_SHARED_LAN_APP_DNS_NAME}
+#       ${PORTAINER_HUB_HOSTNAME}
+#       ${PORTAINER_HUB_HOSTNAME2}
+#       ${PORTAINER_HUB_LAN_IP}
 #       localhost
 #       127.0.0.1
 #
@@ -98,49 +98,49 @@ services:
       # a single router.
 
       # -----------------------------------------
-      # A router for https://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}, on the public internet entrypoint
+      # A router for https://${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}, on the public internet entrypoint
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-public.entrypoints=websecure"
-      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-public.rule=Host(`${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}`)"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-public.rule=Host(`${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}`)"
       # Following middleware will add a request header that will be displayed by whoami to show route configuration
       - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-https-public-headers.headers.customrequestheaders.X-Route-Info=entrypoint=websecure; router=${SUBDOMAIN:-whoami}-https-public"
       # Add an X-Route-Info header
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-public.middlewares=${SUBDOMAIN:-whoami}-https-public-headers"
       # -----------------------------------------
-      # A router for https://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}, on the local lan entrypoint
+      # A router for https://${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}, on the local lan entrypoint
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-private.entrypoints=lanwebsecure"
-      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-private.rule=Host(`${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}`)"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-private.rule=Host(`${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}`)"
       # Following middleware will add a request header that will be displayed by whoami to show route configuration
       - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-https-private-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanwebsecure; router=${SUBDOMAIN:-whoami}-https-private"
       # Add an X-Route-Info header
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-private.middlewares=${SUBDOMAIN:-whoami}-https-private-headers"
       # -----------------------------------------
-      # A router for http://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}, on the public internet entrypint
+      # A router for http://${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}, on the public internet entrypint
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-public.entrypoints=web"
-      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-public.rule=Host(`${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}`)"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-public.rule=Host(`${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}`)"
       # Following middleware will add a request header that will be displayed by whoami to show route configuration
       - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-http-public-headers.headers.customrequestheaders.X-Route-Info=entrypoint=web, router=${SUBDOMAIN:-whoami}-http-public"
       # Add an X-Route-Info header
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-public.middlewares=${SUBDOMAIN:-whoami}-http-public-headers"
       # -----------------------------------------
-      # A router for http://${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}, on the local LAN entrypoint
+      # A router for http://${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}, on the local LAN entrypoint
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private.entrypoints=lanweb"
-      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private.rule=Host(`${SUBDOMAIN:-whoami}.${PARENT_DNS_DOMAIN}`)"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private.rule=Host(`${SUBDOMAIN:-whoami}.${PORTAINER_PARENT_DNS_DOMAIN}`)"
       # Following middleware will add a request header that will be displayed by whoami to show route configuration
       - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-http-private-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanweb, router=${SUBDOMAIN:-whoami}-http-private"
       # Add an X-Route-Info header
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private.middlewares=${SUBDOMAIN:-whoami}-http-private-headers"
       # -----------------------------------------
-      # A router for http(s)://${SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}, on the public internet entrypoint
+      # A router for http(s)://${PORTAINER_SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}, on the public internet entrypoint
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-public-path.entrypoints=websecure"
-      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-public-path.rule=${SHARED_APP_HOST_RULE} && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-public-path.rule=${PORTAINER_SHARED_APP_HOST_RULE} && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
       # Following middleware will add a request header that will be displayed by whoami to show route configuration
       - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-https-shared-public-path-headers.headers.customrequestheaders.X-Route-Info=entrypoint=websecure, router=${SUBDOMAIN:-whoami}-https-shared-public-path"
       # Strip the prefix and add an X-Route-Info header
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-public-path.middlewares=${SUBDOMAIN:-whoami}-strip-prefix,${SUBDOMAIN:-whoami}-https-shared-public-path-headers"
       # -----------------------------------------
-      # A router for https://${SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}, on the local LAN entrypointy
+      # A router for https://${PORTAINER_SHARED_APP_DNS_NAME}/${SUBDOMAIN:-whoami}, on the local LAN entrypointy
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-private-path.entrypoints=lanwebsecure"
-      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-private-path.rule=${SHARED_LAN_APP_HTTPS_HOST_RULE} && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-private-path.rule=${PORTAINER_SHARED_LAN_APP_HTTPS_HOST_RULE} && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
       # Following middleware will add a request header that will be displayed by whoami to show route configuration
       - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-https-shared-private-path-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanwebsecure, router=${SUBDOMAIN:-whoami}-https-shared-private-path"
       # Strip the prefix and add an X-Route-Info header
@@ -148,16 +148,16 @@ services:
       # -----------------------------------------
       # A router for http://<common-lan-local-hostname>/${SUBDOMAIN:-whoami}, on the local LAN entrypoint only
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.entrypoints=lanweb"
-      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.rule=${SHARED_LAN_APP_HTTP_HOST_RULE} && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.rule=${PORTAINER_SHARED_LAN_APP_HTTP_HOST_RULE} && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
       # Following middleware will add a request header that will be displayed by whoami to show route configuration
       - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-http-private-path-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanweb, router=${SUBDOMAIN:-whoami}-http-private-path"
       # Strip the prefix and add an X-Route-Info header
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-http-private-path.middlewares=${SUBDOMAIN:-whoami}-strip-prefix,${SUBDOMAIN:-whoami}-http-private-path-headers"
 
       # -----------------------------------------
-      # A router for https://${SHARED_LAN_APP_DNS_NAME}/${SUBDOMAIN:-whoami}, on the local LAN entrypoint only
+      # A router for https://${PORTAINER_SHARED_LAN_APP_DNS_NAME}/${SUBDOMAIN:-whoami}, on the local LAN entrypoint only
       - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-lan-private-path.entrypoints=lanwebsecure"
-      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-lan-private-path.rule=${SHARED_LAN_APP_HTTPS_HOST_RULE} && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
+      - "traefik.http.routers.${SUBDOMAIN:-whoami}-https-shared-lan-private-path.rule=${PORTAINER_SHARED_LAN_APP_HTTPS_HOST_RULE} && PathPrefix(`/${SUBDOMAIN:-whoami}`)"
       # Following middleware will add a request header that will be displayed by whoami to show route configuration
       - "traefik.http.middlewares.${SUBDOMAIN:-whoami}-https-shared-lan-private-path-headers.headers.customrequestheaders.X-Route-Info=entrypoint=lanwebsecure, router=${SUBDOMAIN:-whoami}-https-shared-lan-private-path"
       # Strip the prefix and add an X-Route-Info header

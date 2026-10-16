@@ -19,6 +19,11 @@ from ..config import HubSettings, current_hub_settings
 from ..proj_dirs import get_project_dir, get_project_build_dir
 from ..x_dotenv import x_dotenv_save_file
 
+# Portainer (2.45+) only makes environment variables whose names start with "PORTAINER_" available
+# for variable expansion in the docker-compose stacks it deploys. Shared hub variables are injected
+# into Portainer's environment with this prefix, e.g. ${PORTAINER_SHARED_APP_HOST_RULE}.
+PORTAINER_SHARED_ENV_PREFIX = "PORTAINER_"
+
 def build_portainer(settings: Optional[HubSettings]=None):
     if settings is None:
         settings = current_hub_settings()
@@ -70,7 +75,7 @@ def build_portainer(settings: Optional[HubSettings]=None):
     environment = injected_env_vars['environment'] = CommentedMap()
     for k in sorted(injected_vars.keys()):
         v = injected_vars[k]
-        environment[k] = v
+        environment[PORTAINER_SHARED_ENV_PREFIX + k] = v
     if os.path.exists(dst_injected_vars_tmp_pathname):
         os.unlink(dst_injected_vars_tmp_pathname)
     try:
