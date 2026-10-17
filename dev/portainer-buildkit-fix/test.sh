@@ -29,7 +29,7 @@ docker build -q -f "$SCRIPT_DIR/Dockerfile.builder" -t "$BUILDER_IMAGE" "$SCRIPT
 
 checkout() {
   local dir=$1
-  git -C "$dir" checkout --quiet --detach "origin/$REF" 2>/dev/null || git -C "$dir" checkout --quiet --detach "$REF"
+  git -C "$dir" checkout --quiet --detach "$REF" 2>/dev/null || git -C "$dir" checkout --quiet --detach "origin/$REF"
   echo "$dir: $(git -C "$dir" log --oneline -1)"
 }
 

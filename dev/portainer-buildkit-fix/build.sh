@@ -40,7 +40,8 @@ checkout() {
   git -C "$dir" remote get-url upstream >/dev/null 2>&1 || git -C "$dir" remote add upstream "$upstream"
   git -C "$dir" fetch --quiet origin
   git -C "$dir" fetch --quiet --tags upstream
-  git -C "$dir" checkout --quiet --detach "origin/$REF" 2>/dev/null || git -C "$dir" checkout --quiet --detach "$REF"
+  # A local branch wins over origin/, so a branch just created by update.sh is built as is
+  git -C "$dir" checkout --quiet --detach "$REF" 2>/dev/null || git -C "$dir" checkout --quiet --detach "origin/$REF"
   if [ -n "$(git -C "$dir" status --porcelain --untracked-files=no)" ]; then
     echo "$dir has local changes; refusing to build" >&2
     exit 1

@@ -62,6 +62,9 @@ They report version "2.45.2 LTS" like the official release; `GET /api/system/ver
 Building the images
 -------------------
 
+For day-to-day use (new upstream releases, adding fixes), see the kit's
+[README](../dev/portainer-buildkit-fix/README.md) and `update.sh`. The details below are how the build works.
+
 [`dev/portainer-buildkit-fix/build.sh`](../dev/portainer-buildkit-fix/build.sh) checks out both forks side by side
 under `$WORK_DIR` (default `~/src/portainer-buildkit-fix`), then builds each one with its own tooling inside a
 toolchain container ([`Dockerfile.builder`](../dev/portainer-buildkit-fix/Dockerfile.builder): Go 1.26.6, Node 22.22.1,
