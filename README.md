@@ -438,7 +438,11 @@ automatically detect the removal of containers and remove the reverse-proxy rout
 Known issues and limitations
 ----------------------------
 
-* TBD
+* Portainer cannot build images for stacks with a `build:` section through the Portainer Agent (BuildKit fails with
+  "http2: frame too large"). See [docs/portainer-agent-build-issue.md](docs/portainer-agent-build-issue.md) for the
+  diagnosis, the `DOCKER_BUILDKIT=0` workaround, and upstream issue references.
+* Portainer 2.45 and later only expose its own environment variables whose names start with `PORTAINER_` to the stacks it deploys,
+  so shared hub variables must be referenced with that prefix (e.g., `${PORTAINER_SHARED_APP_HOST_RULE}`).
 
 Getting help
 ------------

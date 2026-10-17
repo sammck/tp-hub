@@ -1,0 +1,5 @@
+# The official Portainer Agent image with only the agent binary replaced by a patched build.
+# The build context must contain the patched `agent` binary (see build.sh).
+ARG BASE_IMAGE=portainer/agent:2.45.2
+FROM ${BASE_IMAGE}
+COPY agent /app/agent
