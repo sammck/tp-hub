@@ -35,7 +35,7 @@ Branch conventions:
   source of any upstream (or future community-fork) PR. Keep each one small and self-contained so it cherry-picks
   cleanly onto any 2.x-based code.
 * `build/<tag>-<suffix>`: an upstream release tag plus every `fix/*` branch's commits. Images are built from these.
-* `test/*`: one-off experiments. Delete when done.
+* `test/*`: one-off experiments (none currently). Delete when done.
 
 Workflow
 --------

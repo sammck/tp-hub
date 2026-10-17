@@ -34,7 +34,7 @@ Remaining steps
 1. Follow up on PR review and issue replies. Portainer staff usually port external PRs internally rather than merging
    them, so the PRs may be closed with a note that the fix was ported.
 2. When a Portainer release includes both fixes: remove the overrides from the hub's `config.yml` (and the
-   `DOCKER_BUILDKIT` workaround from tp-hub), then delete the `build/` and `test/` fork branches and the Docker Hub
+   `DOCKER_BUILDKIT` workaround from tp-hub), then delete the `build/` fork branches and the Docker Hub
    images. Keep the `fix/` branches until the PRs are closed.
 
 Branches and images
@@ -45,10 +45,9 @@ Branches and images
 | `fix/docker-proxy-protocol-upgrade` (agent, `38bb455`) | upstream `develop` | PR branch |
 | `fix/proxy-buildkit-session-headers` (server, `658a3eae6`) | upstream `develop` | PR branch |
 | `build/2.45.2-buildkit-fix` (agent `c8def40`, server `dc32cb97d`) | tag `2.45.2` | What the Docker Hub images are built from: the release plus the fix, nothing else |
-| `test/2.45.2-protocol-switch` (agent) | tag `2.45.2` | Earlier test build; the fix plus a TEMPORARY debug-logging commit. Can be deleted |
-| `test/2.45.2-buildkit-session-headers` (server) | tag `2.45.2` | Same commit as the server `build/` branch. Can be deleted |
 
-PRs include only their own branch's commits, so the `build/` and `test/` branches never end up in a PR. The fix diffs
+PRs include only their own branch's commits, so the `build/` branches never end up in a PR. (The earlier `test/*`
+branches, including the debug-logging build, were deleted on 2026-10-17.) The fix diffs
 on `fix/*` and `build/*` are identical.
 
 Docker Hub images (public, linux/arm64 only), built from the `build/` branches:
@@ -244,9 +243,9 @@ and link to the issue for details. Commit messages are a subject line plus a few
 Related state elsewhere
 -----------------------
 
-* tp-hub branch `traefik-v3-rule-syntax` (not yet merged to `main`) contains: the traefik v2/v3-neutral rules, the
-  `PORTAINER_` prefixed shared variables, the `DOCKER_BUILDKIT` workaround and image overrides, these docs, and the build kit.
-  The hub's untracked `config.yml` pins `traefik_version: "3.7.15"`.
+* tp-hub `main` (since 2026-10-17; the `traefik-v3-rule-syntax` branch was merged and deleted) contains: the traefik
+  v2/v3-neutral rules, the `PORTAINER_` prefixed shared variables, the patched-image defaults, these docs, and the
+  build kit. The hub's checkout is on `main`, and its untracked `config.yml` pins `traefik_version: "3.7.15"`.
 * jvc-projector branch `modernize-docker-build` (pushed, not merged) contains: python 3.13 / Poetry 2 Dockerfile,
   committed `poetry.lock`, the `PORTAINER_*` variable names, and the local `jvc-projector:local` image. The Portainer stack
   deploys from this branch until it is merged; switching the stack back to `main` makes Portainer remove the stack before
