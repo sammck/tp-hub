@@ -181,7 +181,7 @@ Use **WSL2** with an Ubuntu distribution. It behaves like a normal Linux box for
 2. Inside WSL: install `git`, and set up the SSH key used for GitHub (the forks are pushed over SSH).
 3. Keep checkouts in the WSL filesystem (e.g. `~/src`), not under `/mnt/c`, which is much slower and has permission quirks.
    VS Code's "WSL" extension opens them natively.
-4. Clone tp-hub (branch `traefik-v3-rule-syntax`) to get the build kit and this document.
+4. Clone tp-hub (`main`) to get the build kit and this document.
 
 `mchub` doesn't resolve inside WSL. Use the IP that Windows resolves for `mchub.local` (192.168.4.244 at the time):
 `ssh -o HostKeyAlias=mchub sam@<ip>`.
