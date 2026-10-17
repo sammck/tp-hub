@@ -113,9 +113,10 @@ fi
 
 cat <<EOF
 
-To deploy on the hub, set in ~/tp-hub/config.yml under portainer_stack_env:
-    PORTAINER_VERSION: $TAG-$SUFFIX
-    PORTAINER_AGENT_VERSION: $TAG-$SUFFIX
-then run: hub build && hub portainer up
-and run the end-to-end test (docs/portainer-buildkit-fix-handoff.md, "Testing on the hub").
+To make it tp-hub's default, set the new tag in both places and commit:
+    bin/python/tp_hub/config/impl.py:     PORTAINER_DEFAULT_VERSION = "$TAG-$SUFFIX"
+    stacks/portainer/docker-compose.yml:  the two \${PORTAINER_VERSION:-...} fallbacks
+(or, to try it on the hub first, set "portainer_version: $TAG-$SUFFIX" in ~/tp-hub/config.yml).
+Then on the hub: hub build && hub portainer up, and run the end-to-end test
+(docs/portainer-buildkit-fix-handoff.md, "Testing on the hub").
 EOF

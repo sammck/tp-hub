@@ -2,6 +2,8 @@ Patched Portainer CE builds
 ==========================
 
 Tools for running Portainer CE and the Portainer Agent built from our forks, with fixes that upstream hasn't released.
+tp-hub uses these images by default: `sammck/portainer-ce` and `sammck/portainer-agent`, tagged with the upstream CE
+version plus a suffix naming our fixes (`2.45.2-buildkit-fix`).
 Today that is the pair of BuildKit-through-the-agent fixes (portainer/agent#752, portainer/portainer#13324); the
 background, test results and hub setup are in
 [docs/portainer-buildkit-fix-handoff.md](../../docs/portainer-buildkit-fix-handoff.md).
@@ -52,9 +54,11 @@ dev/portainer-buildkit-fix/update.sh            # newest 2.45.x tag; or: update.
    but not without them (retrying those 3 times, since a few upstream tests are flaky);
 3. builds and pushes `sammck/portainer-ce` and `sammck/portainer-agent` as `<tag>-buildkit-fix` (plus
    `<tag>-buildkit-fix-<commit>`), and pushes the branches;
-4. prints the `config.yml` lines to deploy it on the hub.
+4. prints where to set the new tag.
 
-Then deploy and run the end-to-end test from the hand-off doc ("Testing on the hub").
+Then make the new tag tp-hub's default (`PORTAINER_DEFAULT_VERSION` in `bin/python/tp_hub/config/impl.py` and the
+fallbacks in `stacks/portainer/docker-compose.yml`), deploy on the hub, and run the end-to-end test from the hand-off doc
+("Testing on the hub"). To try a tag before making it the default, set `portainer_version` in the hub's `config.yml`.
 
 **New fix:** branch `fix/<name>` from `upstream/develop` in the right fork, commit, test (`test.sh`), push it to
 `origin`, then rerun `update.sh` for the current release to rebuild with it included.

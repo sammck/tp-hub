@@ -3,13 +3,18 @@ version: "3.3"
 # docker-compose.yml configuration for a Traefik reverse-proxy with dashboard.
 #
 #  Environment Variables:
-#    PORTAINER_VERSION       The version of Portainer to use. defaults to 2.19.0
-#    PORTAINER_IMAGE         The Portainer server image repository to use. defaults to portainer/portainer-ce. Can be set
-#                            (with PORTAINER_VERSION) to run a locally built or forked Portainer.
+#    PORTAINER_VERSION       The Portainer image tag to use: the upstream CE version plus the suffix of our patched
+#                            build. Defaults to 2.45.2-buildkit-fix.
+#    PORTAINER_IMAGE         The Portainer server image repository to use. Defaults to sammck/portainer-ce, Portainer CE
+#                            built from our fork with fixes upstream hasn't released (dev/portainer-buildkit-fix/README.md).
+#                            Set to portainer/portainer-ce (with PORTAINER_VERSION) for the stock image.
 #    PORTAINER_AGENT_VERSION
-#                            The version of Portainer_agent to use. defaults to ${PORTAINER_VERSION}.
-#    PORTAINER_AGENT_IMAGE   The Portainer Agent image repository to use. defaults to portainer/agent. Can be set
-#                            (with PORTAINER_AGENT_VERSION) to run a locally built or forked agent.
+#                            The Portainer Agent image tag to use. Defaults to ${PORTAINER_VERSION}.
+#    PORTAINER_AGENT_IMAGE   The Portainer Agent image repository to use. Defaults to sammck/portainer-agent (patched, as
+#                            above). Set to portainer/agent (with PORTAINER_AGENT_VERSION) for the stock image.
+#    PORTAINER_DOCKER_BUILDKIT
+#                            DOCKER_BUILDKIT for the Portainer server. Defaults to 1. Set to 0 with stock images, whose
+#                            agent cannot relay BuildKit builds (docs/portainer-agent-build-issue.md).
 #    PORTAINER_INITIAL_PASSWORD_HASH
 #                            The initial bcrypt-hashed password of the Portainer 'admin' account to use for
 #                            bootstrapping Portainer security. It is meant to be temporary. The first time
@@ -74,7 +79,7 @@ services:
     # A portainer agent that provides access to docker on the local host.
     # also allows docker volumes to be browsed and edited. Only used by
     # portainer
-    image: ${PORTAINER_AGENT_IMAGE:-portainer/agent}:${PORTAINER_AGENT_VERSION:-${PORTAINER_VERSION:-2.19.0}}
+    image: ${PORTAINER_AGENT_IMAGE:-sammck/portainer-agent}:${PORTAINER_AGENT_VERSION:-${PORTAINER_VERSION:-2.45.2-buildkit-fix}}
     environment:
       # REQUIRED: Should be equal to the service name prefixed by "tasks." when
       # deployed inside an overlay network
@@ -98,7 +103,7 @@ services:
     restart: always
 
   portainer:
-    image: ${PORTAINER_IMAGE:-portainer/portainer-ce}:${PORTAINER_VERSION:-2.19.0}
+    image: ${PORTAINER_IMAGE:-sammck/portainer-ce}:${PORTAINER_VERSION:-2.45.2-buildkit-fix}
     extends:
       # This deep-merges in the contents of injected-env-vars.yml (which are auto-generated)
       # into this docker-compose.yml.
@@ -108,10 +113,10 @@ services:
       # AGENT_PORT: 9001
       LOG_LEVEL: ${PORTAINER_LOG_LEVEL}
       AGENT_SECRET: '${PORTAINER_AGENT_SECRET}'    # allows portainer to authenticate to the agent
-      # Workaround: the Portainer Agent cannot relay BuildKit's HTTP/2 upgrade, so stacks with a `build:` section
-      # fail to deploy through the agent. Use Docker's classic builder instead, unless PORTAINER_DOCKER_BUILDKIT=1
-      # (e.g., with a fixed agent image). Remove once Portainer ships a fix. See docs/portainer-agent-build-issue.md.
-      DOCKER_BUILDKIT: "${PORTAINER_DOCKER_BUILDKIT:-0}"
+      # Stock Portainer agents cannot relay BuildKit's HTTP/2 upgrade, so stacks with a `build:` section fail to deploy
+      # through them; our patched images can. Set PORTAINER_DOCKER_BUILDKIT=0 (Docker's classic builder) when running
+      # stock images. See docs/portainer-agent-build-issue.md.
+      DOCKER_BUILDKIT: "${PORTAINER_DOCKER_BUILDKIT:-1}"
     command:
       # Initial password hash for the 'admin' account.  This is a temporary password that is only used
       # on first launch, or when the portainer_data volume is wiped.  It is meant to be changed immediately

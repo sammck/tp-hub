@@ -47,7 +47,15 @@ from ..pkg_logging import logger
 from ..internal_types import *
 
 TRAEFIK_DEFAULT_VERSION = "2.10.4"
-PORTAINER_DEFAULT_VERSION = "2.19.0"
+# tp-hub runs Portainer CE and the Agent built from our forks (github.com/mckelvie-org/portainer and
+# .../portainer-agent), which carry fixes upstream hasn't released; see dev/portainer-buildkit-fix/README.md.
+# Image tags are the upstream CE version plus a suffix naming our fixes, e.g. "2.45.2-buildkit-fix".
+PORTAINER_DEFAULT_VERSION = "2.45.2-buildkit-fix"
+PORTAINER_DEFAULT_IMAGE = "sammck/portainer-ce"
+PORTAINER_DEFAULT_AGENT_IMAGE = "sammck/portainer-agent"
+# The patched images can run BuildKit builds through the agent; "0" falls back to Docker's classic builder
+# (needed with stock upstream images; see docs/portainer-agent-build-issue.md).
+PORTAINER_DEFAULT_DOCKER_BUILDKIT = "1"
 
 def traefik_host_rule(hostnames: List[str]) -> str:
     """Return a Traefik rule matching any of the given hostnames.
@@ -196,9 +204,11 @@ class HubSettings(BaseSettings):
         return v
 
     portainer_version: str = Field(default=None, description=usl(
-        f"""The portainer version to use. Defaults to PORTAINER_DEFAULT_VERSION."""
+        f"""The Portainer server and agent image tag to use: the upstream CE version plus the suffix of
+            our patched build, e.g. "2.45.2-buildkit-fix". Defaults to PORTAINER_DEFAULT_VERSION."""
       ))
-    """The portainer version to use. Defaults to PORTAINER_DEFAULT_VERSION."""
+    """The Portainer server and agent image tag to use: the upstream CE version plus the suffix of
+       our patched build, e.g. "2.45.2-buildkit-fix". Defaults to PORTAINER_DEFAULT_VERSION."""
 
     @validator('portainer_version', pre=True, always=True)
     def portainer_version_validator(cls, v, values, **kwargs):
@@ -948,6 +958,12 @@ class HubSettings(BaseSettings):
            In addition to the variables explicitly added, the following variables are implicitly
            added if they are not set:
                     PORTAINER_VERSION                  config.portainer_version
+                PORTAINER_IMAGE                    PORTAINER_DEFAULT_IMAGE (sammck/portainer-ce)
+                PORTAINER_AGENT_IMAGE              PORTAINER_DEFAULT_AGENT_IMAGE (sammck/portainer-agent)
+                PORTAINER_DOCKER_BUILDKIT          PORTAINER_DEFAULT_DOCKER_BUILDKIT (1)
+                    PORTAINER_IMAGE                    PORTAINER_DEFAULT_IMAGE (sammck/portainer-ce)
+                    PORTAINER_AGENT_IMAGE              PORTAINER_DEFAULT_AGENT_IMAGE (sammck/portainer-agent)
+                    PORTAINER_DOCKER_BUILDKIT          PORTAINER_DEFAULT_DOCKER_BUILDKIT (1)
                     PORTAINER_DNS_NAME                 config.portainer_dns_name
                     PORTAINER_AGENT_SECRET             config.portainer_agent_secret
                     PORTAINER_INITIAL_PASSWORD_HASH    config.portainer_initial_password_hash
@@ -961,6 +977,9 @@ class HubSettings(BaseSettings):
        In addition to the variables explicitly added, the following variables are implicitly
        added if they are not set:
                 PORTAINER_VERSION                  config.portainer_version
+                PORTAINER_IMAGE                    PORTAINER_DEFAULT_IMAGE (sammck/portainer-ce)
+                PORTAINER_AGENT_IMAGE              PORTAINER_DEFAULT_AGENT_IMAGE (sammck/portainer-agent)
+                PORTAINER_DOCKER_BUILDKIT          PORTAINER_DEFAULT_DOCKER_BUILDKIT (1)
                 PORTAINER_DNS_NAME                 config.portainer_dns_name
                 PORTAINER_AGENT_SECRET             config.portainer_agent_secret
                 PORTAINER_INITIAL_PASSWORD_HASH    config.portainer_initial_password_hash
@@ -974,6 +993,9 @@ class HubSettings(BaseSettings):
         logger.debug(f"{sname}_validator: v={v}, values={values}, kwargs={kwargs}")
         v = cls._validate_env_dict(sname, v, values, base_env=values['base_stack_env'], **kwargs)
         cls._set_default_env_var(v, 'PORTAINER_VERSION', values['portainer_version'])
+        cls._set_default_env_var(v, 'PORTAINER_IMAGE', PORTAINER_DEFAULT_IMAGE)
+        cls._set_default_env_var(v, 'PORTAINER_AGENT_IMAGE', PORTAINER_DEFAULT_AGENT_IMAGE)
+        cls._set_default_env_var(v, 'PORTAINER_DOCKER_BUILDKIT', PORTAINER_DEFAULT_DOCKER_BUILDKIT)
         cls._set_default_env_var(v, 'PORTAINER_DNS_NAME', values['portainer_dns_name'])
         cls._set_default_env_var(v, 'PORTAINER_AGENT_SECRET', values['portainer_agent_secret'])
         cls._set_default_env_var(v, 'PORTAINER_INITIAL_PASSWORD_HASH', values['portainer_initial_password_hash'])

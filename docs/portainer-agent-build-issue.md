@@ -1,7 +1,8 @@
 Known issue: Portainer cannot build stack images through the Portainer Agent
 ===========================================================================
 
-*Investigated 2026-10-16 on Portainer CE 2.45.2 / Portainer Agent 2.45.2 / Docker Engine 29.9.1 (Raspberry Pi 5, Ubuntu 22.04).*
+*Investigated 2026-10-16 on Portainer CE 2.45.2 / Portainer Agent 2.45.2 / Docker Engine 29.9.1 (Raspberry Pi 5, Ubuntu 22.04).
+Fixed in tp-hub on 2026-10-17 by running patched images; see [Status](#status).*
 
 Summary
 -------
@@ -116,8 +117,9 @@ Caveats:
 * The classic builder is deprecated by Docker. Docker Engine 29 still supports it, but a future release may remove it.
 * Dockerfiles that use BuildKit-only features fail with the classic builder. Examples are `RUN --mount=...`
   (cache, secret and ssh mounts) and `COPY --chmod`. Builds are also generally slower.
-* Remove the setting once Portainer ships fixes for both bugs (see [Status](#status)). In tp-hub the value comes from
-  `PORTAINER_DOCKER_BUILDKIT` (default `0`), which can be set in `config.yml` under `portainer_stack_env`.
+* In tp-hub the value comes from `PORTAINER_DOCKER_BUILDKIT`, set in `config.yml` under `portainer_stack_env`. Its
+  default is now `1`, because tp-hub runs patched images by default (see [Status](#status)); set it to `"0"` when
+  running the stock `portainer/portainer-ce` and `portainer/agent` images.
 
 Alternatives that were considered:
 
@@ -129,17 +131,16 @@ Status
 ------
 
 * **Upstream:** open. [portainer/portainer#13255](https://github.com/portainer/portainer/issues/13255) is labelled
-  `kind/bug` and `release/3.0.0` and is linked to Portainer's internal tracker. As of 2026-10-16 no
-  fix has been released, and no pull request addresses it in either `portainer/portainer` or `portainer/agent`.
-  None of the upstream threads identify either root cause.
-* **tp-hub:** the `DOCKER_BUILDKIT=0` workaround is set in `stacks/portainer/docker-compose.yml`. Verified 2026-10-16:
-  a git stack ([sammck/jvc-projector](https://github.com/sammck/jvc-projector)) was built by Portainer through the agent
-  with the classic builder and deployed successfully. Note that changing a git stack's branch or reference makes Portainer
-  remove the stack *before* building, so the service is down for the length of the build.
-* **Fixes in progress** (see [portainer-buildkit-fix-handoff.md](portainer-buildkit-fix-handoff.md)):
-  * agent: on `101 Switching Protocols`, hijack the client connection and relay bytes in both directions.
-    Verified live on the hub.
-  * server: add the four `X-Docker-Expose-Session-*` headers to the proxy allowlist. Unit-tested; end-to-end test pending.
+  `kind/bug` and `release/3.0.0` and is linked to Portainer's internal tracker. Our fixes are proposed in
+  [portainer/agent#752](https://github.com/portainer/agent/pull/752) and
+  [portainer/portainer#13324](https://github.com/portainer/portainer/pull/13324) (2026-10-17), with the root causes
+  explained on #13255. Portainer 3.0 has no CE build, so CE gets the fixes only if they are backported to 2.45 LTS.
+* **tp-hub (since 2026-10-17):** runs Portainer CE and the Agent built from our forks with both fixes
+  (`sammck/portainer-ce` / `sammck/portainer-agent`, tag `2.45.2-buildkit-fix`) as its defaults, with BuildKit on.
+  Verified end to end on the hub, including a build longer than the agent's 120 s timeout; see
+  [portainer-buildkit-fix-handoff.md](portainer-buildkit-fix-handoff.md). The classic-builder workaround above is only
+  needed with stock images. Note that changing a git stack's branch or reference makes Portainer remove the stack
+  *before* building, so the service is down for the length of the build.
 
 References
 ----------

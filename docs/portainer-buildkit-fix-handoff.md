@@ -190,31 +190,27 @@ Use **WSL2** with an Ubuntu distribution. It behaves like a normal Linux box for
 Testing on the hub
 ------------------
 
-tp-hub's Portainer stack accepts these overrides, set under `portainer_stack_env` in the hub's `config.yml` (which is
-not tracked in git):
+tp-hub uses the patched images by default (since 2026-10-17). The Portainer stack takes these variables, which can be
+overridden under `portainer_stack_env` in the hub's `config.yml` (not tracked in git):
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `PORTAINER_IMAGE` | Portainer server image repository | `portainer/portainer-ce` |
-| `PORTAINER_VERSION` | Portainer server image tag | `config.portainer_version` |
-| `PORTAINER_AGENT_IMAGE` | Agent image repository | `portainer/agent` |
+| `PORTAINER_IMAGE` | Portainer server image repository | `sammck/portainer-ce` |
+| `PORTAINER_VERSION` | Portainer server image tag | `config.portainer_version`, default `2.45.2-buildkit-fix` |
+| `PORTAINER_AGENT_IMAGE` | Agent image repository | `sammck/portainer-agent` |
 | `PORTAINER_AGENT_VERSION` | Agent image tag | `${PORTAINER_VERSION}` |
-| `PORTAINER_DOCKER_BUILDKIT` | `DOCKER_BUILDKIT` for the Portainer server: `0` = classic-builder workaround, `1` = BuildKit | `0` |
+| `PORTAINER_DOCKER_BUILDKIT` | `DOCKER_BUILDKIT` for the Portainer server: `1` = BuildKit, `0` = classic-builder workaround (needed with stock images) | `1` |
 
-**Current hub state** (2026-10-17). The previous config is saved as `~/tp-hub/config.yml.bak-2026-10-17` on the hub:
+The defaults live in `bin/python/tp_hub/config/impl.py` (`PORTAINER_DEFAULT_*`), with matching fallbacks in
+`stacks/portainer/docker-compose.yml`. **Current hub state:** no Portainer overrides in `config.yml`; it runs the
+defaults. The config from before the switch is saved as `~/tp-hub/config.yml.bak-2026-10-17` on the hub.
 
-```yaml
-  portainer_stack_env:
-    PORTAINER_IMAGE: sammck/portainer-ce
-    PORTAINER_VERSION: 2.45.2-buildkit-fix
-    PORTAINER_AGENT_IMAGE: sammck/portainer-agent
-    PORTAINER_AGENT_VERSION: 2.45.2-buildkit-fix
-    PORTAINER_DOCKER_BUILDKIT: "1"
-```
+To run stock images instead, set `PORTAINER_IMAGE: portainer/portainer-ce`, `PORTAINER_AGENT_IMAGE: portainer/agent`,
+`PORTAINER_VERSION: <version>` and `PORTAINER_DOCKER_BUILDKIT: "0"`.
 
 **End-to-end test:**
 
-1. Apply the config with `hub build && hub portainer up` (Docker pulls the images).
+1. Apply the config with `hub build && hub portainer up` (Docker pulls any image it doesn't have).
 2. Clear the BuildKit cache, so the builds are real: `docker builder prune -af`.
 3. Redeploy the jvc-projector stack (stack 3, a git stack from `github.com/sammck/jvc-projector`, branch
    `modernize-docker-build`): "Pull and redeploy" in the UI, or `PUT /api/stacks/3/git/redeploy?endpointId=3` with the
@@ -226,8 +222,7 @@ not tracked in git):
 5. Success: the Portainer log shows BuildKit progress (`#1 [... internal] load build definition`) and no `Step N/M`,
    no `frame too large` / `unable to upgrade` / `no active sessions` / `session already exists` anywhere, and
    `http://<hub>/jvc-projector/api/v1/` returns 200.
-6. **Rollback** at any time: remove the override lines (or set `PORTAINER_DOCKER_BUILDKIT: "0"` with stock images),
-   then `hub build && hub portainer up`.
+6. **Rollback** to stock images at any time: set the stock overrides above, then `hub build && hub portainer up`.
 
 API notes: the API is at `http://localhost:9000/portainer/api` on the hub. The token in
 `~/.private/claude_portainer_access_token.txt` is the bare token with no newline, so
