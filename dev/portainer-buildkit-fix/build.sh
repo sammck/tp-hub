@@ -1,106 +1,109 @@
 #!/usr/bin/env bash
 #
-# Build patched Portainer Agent and Portainer CE server images for testing the BuildKit-through-agent fixes.
-# See docs/portainer-buildkit-fix-handoff.md.
+# Build Portainer CE and Portainer Agent images from the mckelvie-org forks, using the forks' own Makefiles and
+# Dockerfiles (build/linux/Dockerfile), and push them to a registry. See docs/portainer-buildkit-fix-handoff.md.
 #
-# Runs on any Linux (or WSL2) host with Docker and git. The Go binaries are cross-compiled in a golang container,
-# then layered onto the official images, so no QEMU emulation is needed even when building arm64 images on x86.
+# Runs on any Linux (or WSL2) host with Docker and git. The Go binaries are cross-compiled and the web client is built
+# in a toolchain container (Dockerfile.builder); only the final `COPY`-only image build runs for the target platform,
+# so no QEMU emulation is needed even when building arm64 images on x86.
 #
 # Environment variables (all optional):
 #   WORK_DIR         Where the two fork checkouts live, side by side (default: ~/src/portainer-buildkit-fix).
 #                    The agent's go.mod requires the server repo to be checked out as ../server-ce.
-#   ARCH             Target architecture: arm64 (Raspberry Pi) or amd64 (default: arm64)
-#   COMPONENTS       Which images to build: "agent server", "agent" or "server" (default: "agent server")
-#   AGENT_REF        Branch/ref of mckelvie-org/portainer-agent (default: test/2.45.2-protocol-switch)
-#   SERVER_REF       Branch/ref of mckelvie-org/portainer (default: test/2.45.2-buildkit-session-headers)
-#   PORTAINER_BASE   Version tag of the official images to layer onto (default: 2.45.2)
-#   PUSH_REGISTRY    If set (e.g. ghcr.io/mckelvie-org), push the images there instead of saving a tar file
-#   GO_IMAGE         Go toolchain image (default: golang:1.26)
-#
-# Outputs (without PUSH_REGISTRY): $WORK_DIR/out/portainer-buildkit-fix-images-$ARCH.tar, which can be loaded on the
-# hub with:   ssh <hub> docker load < portainer-buildkit-fix-images-arm64.tar
+#   ARCH             Target architecture (default: arm64). One image per run; Portainer's own Dockerfiles take one
+#                    architecture's dist/ at a time.
+#   COMPONENTS       Which images to build: "server agent", "server" or "agent" (default: "server agent")
+#   REF              Branch/ref to build in both forks (default: build/2.45.2-buildkit-fix, i.e. tag 2.45.2 + the fix)
+#   REGISTRY         Image namespace (default: docker.io/sammck)
+#   TAG              Image tag (default: 2.45.2-buildkit-fix). Each image is also tagged $TAG-<short commit>.
+#   PUSH             1 (default) to push to $REGISTRY, 0 to load the images into the local Docker instead
+#                    (only possible when ARCH matches what the local Docker can load).
 #
 set -euo pipefail
 
 WORK_DIR=${WORK_DIR:-$HOME/src/portainer-buildkit-fix}
 ARCH=${ARCH:-arm64}
-COMPONENTS=${COMPONENTS:-agent server}
-AGENT_REF=${AGENT_REF:-test/2.45.2-protocol-switch}
-SERVER_REF=${SERVER_REF:-test/2.45.2-buildkit-session-headers}
-PORTAINER_BASE=${PORTAINER_BASE:-2.45.2}
-PUSH_REGISTRY=${PUSH_REGISTRY:-}
-GO_IMAGE=${GO_IMAGE:-golang:1.26}
-
-AGENT_REPO=https://github.com/mckelvie-org/portainer-agent.git
-SERVER_REPO=https://github.com/mckelvie-org/portainer.git
-IMAGE_PREFIX=${PUSH_REGISTRY:-mckelvie-org}
-AGENT_IMAGE="$IMAGE_PREFIX/portainer-agent:$PORTAINER_BASE-protocol-switch"
-SERVER_IMAGE="$IMAGE_PREFIX/portainer-ce:$PORTAINER_BASE-buildkit-session-headers"
+COMPONENTS=${COMPONENTS:-server agent}
+REF=${REF:-build/2.45.2-buildkit-fix}
+REGISTRY=${REGISTRY:-docker.io/sammck}
+TAG=${TAG:-2.45.2-buildkit-fix}
+PUSH=${PUSH:-1}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+BUILDER_IMAGE=portainer-fix-builder:local
 
 checkout() {
-  local repo=$1 dir=$2 ref=$3
+  local repo=$1 upstream=$2 dir=$3
   if [ ! -d "$dir/.git" ]; then
     git clone --filter=blob:none "$repo" "$dir"
   fi
+  git -C "$dir" remote get-url upstream >/dev/null 2>&1 || git -C "$dir" remote add upstream "$upstream"
   git -C "$dir" fetch --quiet origin
-  git -C "$dir" checkout --quiet --detach "origin/$ref" 2>/dev/null || git -C "$dir" checkout --quiet --detach "$ref"
+  git -C "$dir" fetch --quiet --tags upstream
+  git -C "$dir" checkout --quiet --detach "origin/$REF" 2>/dev/null || git -C "$dir" checkout --quiet --detach "$REF"
+  if [ -n "$(git -C "$dir" status --porcelain --untracked-files=no)" ]; then
+    echo "$dir has local changes; refusing to build" >&2
+    exit 1
+  fi
   echo "$dir: $(git -C "$dir" log --oneline -1)"
 }
 
-# Run a command in the Go container, with both checkouts mounted side by side and a persistent module/build cache
-go_run() {
+# Run a command in the toolchain container, with both checkouts mounted side by side and persistent caches
+in_builder() {
   local subdir=$1; shift
-  mkdir -p "$WORK_DIR/.gocache"
-  docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp \
-    -e GOCACHE=/cache/build -e GOMODCACHE=/cache/mod -e GOFLAGS=-buildvcs=false \
-    -e CGO_ENABLED=0 -e GOOS=linux -e GOARCH="$ARCH" \
-    -v "$WORK_DIR/.gocache:/cache" -v "$WORK_DIR:/work" -w "/work/$subdir" \
-    "$GO_IMAGE" "$@"
+  mkdir -p "$WORK_DIR/.cache/home"
+  docker run --rm -u "$(id -u):$(id -g)" -e HOME=/cache/home \
+    -e GOCACHE=/cache/go-build -e GOMODCACHE=/cache/go-mod -e GOFLAGS=-buildvcs=false \
+    -v "$WORK_DIR/.cache:/cache" -v "$WORK_DIR:/work" -w "/work/$subdir" \
+    "$BUILDER_IMAGE" bash -euo pipefail -c "$*"
 }
 
-# Layer a binary onto an official image for the target platform
-layer_image() {
-  local dockerfile=$1 base=$2 image=$3 binary=$4
-  local ctx="$WORK_DIR/out/ctx-$(basename "$binary")"
-  rm -rf "$ctx" && mkdir -p "$ctx"
-  cp "$binary" "$ctx/"
-  local output=(--load)
-  [ -n "$PUSH_REGISTRY" ] && output=(--push)
-  docker buildx build --platform "linux/$ARCH" -f "$SCRIPT_DIR/$dockerfile" --build-arg "BASE_IMAGE=$base" \
-    --label "org.opencontainers.image.revision=$5" -t "$image" "${output[@]}" "$ctx"
+# Build a fork's build/linux/Dockerfile for the target platform and push (or load) it
+build_image() {
+  local dir=$1 name=$2
+  local commit; commit=$(git -C "$dir" rev-parse HEAD)
+  local output=(--push)
+  [ "$PUSH" = 1 ] || output=(--load)
+  docker buildx build --platform "linux/$ARCH" -f "$dir/build/linux/Dockerfile" \
+    --build-arg "GIT_COMMIT=$commit" --build-arg "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --label "org.opencontainers.image.source=$(git -C "$dir" remote get-url origin)" \
+    -t "$REGISTRY/$name:$TAG" -t "$REGISTRY/$name:$TAG-${commit:0:7}" \
+    "${output[@]}" "$dir"
+  images+=("$REGISTRY/$name:$TAG ($REGISTRY/$name:$TAG-${commit:0:7})")
 }
 
-mkdir -p "$WORK_DIR/out"
+docker build -q -f "$SCRIPT_DIR/Dockerfile.builder" -t "$BUILDER_IMAGE" "$SCRIPT_DIR" >/dev/null
 images=()
 
-# The agent build always needs the server checkout too, because of the agent's `replace ... => ../server-ce`
-checkout "$SERVER_REPO" "$WORK_DIR/server-ce" "$SERVER_REF"
-
-if [[ " $COMPONENTS " == *" agent "* ]]; then
-  checkout "$AGENT_REPO" "$WORK_DIR/portainer-agent" "$AGENT_REF"
-  echo "Building agent binary (linux/$ARCH)..."
-  go_run portainer-agent go build -trimpath --installsuffix cgo --ldflags "-s" -o ../out/agent ./cmd/agent/
-  layer_image Dockerfile.agent "portainer/agent:$PORTAINER_BASE" "$AGENT_IMAGE" "$WORK_DIR/out/agent" \
-    "$(git -C "$WORK_DIR/portainer-agent" rev-parse HEAD)"
-  images+=("$AGENT_IMAGE")
-fi
+# The agent build needs the server checkout too, because of the agent's `replace ... => ../server-ce`
+checkout https://github.com/mckelvie-org/portainer.git https://github.com/portainer/portainer.git "$WORK_DIR/server-ce"
 
 if [[ " $COMPONENTS " == *" server "* ]]; then
-  echo "Building Portainer server binary (linux/$ARCH)..."
-  go_run server-ce/api go build -trimpath --installsuffix cgo \
-    --ldflags "-s -X 'github.com/portainer/liblicense.LicenseServerBaseURL=https://api.portainer.io' -X 'github.com/portainer/portainer/pkg/build.GitCommit=$(git -C "$WORK_DIR/server-ce" rev-parse --short HEAD)'" \
-    -o ../../out/portainer ./cmd/portainer/
-  layer_image Dockerfile.server "portainer/portainer-ce:$PORTAINER_BASE" "$SERVER_IMAGE" "$WORK_DIR/out/portainer" \
-    "$(git -C "$WORK_DIR/server-ce" rev-parse HEAD)"
-  images+=("$SERVER_IMAGE")
+  echo "Building Portainer CE (server binary and web client, linux/$ARCH)..."
+  # Client deps first, as in `make all`: build_binary.sh records the installed webpack version and exits
+  # (silently) if it is missing. `make client-deps` is a plain `pnpm install`, which adds the pnpmfileChecksum of
+  # package.json's configDependencies to pnpm-lock.yaml (missing from the committed lockfile, so
+  # --frozen-lockfile is refused). Show that diff, so any change of resolved packages would be visible, then
+  # restore the lockfile.
+  in_builder server-ce "
+    rm -rf dist
+    make client-deps
+    git -c safe.directory='*' diff --stat -- pnpm-lock.yaml
+    git -c safe.directory='*' diff -U0 -- pnpm-lock.yaml | grep -E '^[-+][^-+]' | head -20 || true
+    git -c safe.directory='*' checkout -- pnpm-lock.yaml
+    SKIP_GO_GET=true CONTAINER_IMAGE_TAG=$TAG make build-server PLATFORM=linux ARCH=$ARCH
+    make build-client ENV=production"
+  build_image "$WORK_DIR/server-ce" portainer-ce
 fi
 
-if [ -z "$PUSH_REGISTRY" ]; then
-  tarfile="$WORK_DIR/out/portainer-buildkit-fix-images-$ARCH.tar"
-  docker save -o "$tarfile" "${images[@]}"
-  echo "Saved ${images[*]} to $tarfile"
-else
-  echo "Pushed ${images[*]}"
+if [[ " $COMPONENTS " == *" agent "* ]]; then
+  checkout https://github.com/mckelvie-org/portainer-agent.git https://github.com/portainer/agent.git \
+    "$WORK_DIR/portainer-agent"
+  echo "Building Portainer Agent (linux/$ARCH)..."
+  in_builder portainer-agent "
+    rm -rf dist && mkdir dist
+    make agent credential-helper healthy PLATFORM=linux ARCH=$ARCH"
+  build_image "$WORK_DIR/portainer-agent" portainer-agent
 fi
+
+printf '%s\n' "${images[@]/#/Built }"
