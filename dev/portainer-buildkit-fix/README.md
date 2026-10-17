@@ -22,12 +22,21 @@ like `sammck/portainer-ce`, but anything published as a project needs its own na
 Repositories and branches
 -------------------------
 
-Forks, checked out side by side under `~/src/portainer-buildkit-fix` (the agent's `go.mod` requires `../server-ce`):
+Your working clones of the forks, next to tp-hub:
 
-| Checkout | Fork (`origin`) | Upstream (`upstream`) |
+| Clone | Fork (`origin`) | Upstream (`upstream`) |
 |---|---|---|
-| `server-ce` | `mckelvie-org/portainer` | `portainer/portainer` |
-| `portainer-agent` | `mckelvie-org/portainer-agent` | `portainer/agent` |
+| `~/projects/portainer` | `mckelvie-org/portainer` | `portainer/portainer` |
+| `~/projects/portainer-agent` | `mckelvie-org/portainer-agent` | `portainer/agent` |
+
+The agent's `go.mod` requires the server checkout at `../server-ce`. For Go tooling on the host (VS Code/gopls in the
+agent clone), `~/projects/server-ce` is a symlink to `portainer`.
+
+The scripts never change your clones' checkouts or working trees. They build and test in **git worktrees** of the
+clones under `~/.cache/portainer-fix-build/worktrees/` (`server-ce/` and `portainer-agent/`), which share the clones'
+commits and branches: a `build/` branch that `update.sh` creates is a branch of your clone. The same directory holds
+the Go and pnpm caches (~10 GB) and test logs (`logs/`). Settings and helpers shared by the scripts are in
+[`common.sh`](common.sh) (`SERVER_REPO`, `AGENT_REPO`, `CACHE_DIR`).
 
 Branch conventions:
 
@@ -60,8 +69,8 @@ Then make the new tag tp-hub's default (`PORTAINER_DEFAULT_VERSION` in `bin/pyth
 fallbacks in `stacks/portainer/docker-compose.yml`), deploy on the hub, and run the end-to-end test from the hand-off doc
 ("Testing on the hub"). To try a tag before making it the default, set `portainer_version` in the hub's `config.yml`.
 
-**New fix:** branch `fix/<name>` from `upstream/develop` in the right fork, commit, test (`test.sh`), push it to
-`origin`, then rerun `update.sh` for the current release to rebuild with it included.
+**New fix:** in your clone, branch `fix/<name>` from `upstream/develop`, commit, test (`REF=fix/<name> test.sh`), push
+it to `origin`, then rerun `update.sh` for the current release to rebuild with it included.
 
 **Fix merged or released upstream:** nothing to do; `update.sh` drops it once the release contains it. Delete the
 `fix/` branch when its PR is closed.
@@ -73,12 +82,14 @@ Scripts
 |---|---|
 | `update.sh [TAG]` | The whole release update described above. `PUSH=0` builds locally only; `SKIP_TESTS=1` skips tests. |
 | `build.sh` | Builds images from `REF` (default `build/2.45.2-buildkit-fix`) with the forks' own Makefiles and `build/linux/Dockerfile`; `PUSH=0` loads locally. |
-| `test.sh` | Runs both forks' Go test suites (`REF=...`, `PACKAGES=...`, `COMPONENTS=server\|agent`). Mounts the Docker socket, because some packages deploy real stacks. |
+| `test.sh` | Runs both forks' Go test suites (`REF=...`, `PACKAGES=...`, `COMPONENTS=server\|agent`). Mounts the Docker socket, because some packages deploy real stacks. Logs go to `~/.cache/portainer-fix-build/logs/`. |
+| `common.sh` | Shared settings (clone locations, cache directory) and helpers, sourced by the other scripts. |
 | `Dockerfile.builder` | Toolchain image (Go, Node, pnpm, docker CLI) that the scripts run in. Versions follow `package.json` and `go.mod`; bump them when upstream does. |
 | `upstream-drafts.md` | The text posted for the upstream PRs and issue comments (2026-10-17). |
 
-All scripts take `WORK_DIR` (default `~/src/portainer-buildkit-fix`) and leave the checkouts on a detached `HEAD` or
-on the build branch. They refuse to run over uncommitted changes.
+All scripts work in the worktrees described above and refuse to run if a worktree has uncommitted changes. `build.sh`
+and `update.sh` fetch both forks and upstream first. A local branch wins over `origin/`, so a branch you create in
+your clone is built as is.
 
 Gotchas
 -------

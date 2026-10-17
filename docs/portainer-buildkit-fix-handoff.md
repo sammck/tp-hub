@@ -64,8 +64,9 @@ Building the images
 For day-to-day use (new upstream releases, adding fixes), see the kit's
 [README](../dev/portainer-buildkit-fix/README.md) and `update.sh`. The details below are how the build works.
 
-[`dev/portainer-buildkit-fix/build.sh`](../dev/portainer-buildkit-fix/build.sh) checks out both forks side by side
-under `$WORK_DIR` (default `~/src/portainer-buildkit-fix`), then builds each one with its own tooling inside a
+[`dev/portainer-buildkit-fix/build.sh`](../dev/portainer-buildkit-fix/build.sh) checks out both forks side by side in
+git worktrees of your clones (`~/projects/portainer`, `~/projects/portainer-agent`; see the kit README), then builds
+each one with its own tooling inside a
 toolchain container ([`Dockerfile.builder`](../dev/portainer-buildkit-fix/Dockerfile.builder): Go 1.26.6, Node 22.22.1,
 pnpm 10.26.2, docker CLI):
 
@@ -179,9 +180,10 @@ Use **WSL2** with an Ubuntu distribution. It behaves like a normal Linux box for
 1. Install WSL2 + Ubuntu (`wsl --install -d Ubuntu`), and either Docker Desktop with WSL integration enabled for that
    distribution, or Docker Engine installed inside WSL. With Docker Desktop, `docker login` uses its credential store.
 2. Inside WSL: install `git`, and set up the SSH key used for GitHub (the forks are pushed over SSH).
-3. Keep checkouts in the WSL filesystem (e.g. `~/src`), not under `/mnt/c`, which is much slower and has permission quirks.
+3. Keep checkouts in the WSL filesystem (e.g. `~/projects`), not under `/mnt/c`, which is much slower and has permission quirks.
    VS Code's "WSL" extension opens them natively.
-4. Clone tp-hub (`main`) to get the build kit and this document.
+4. Clone tp-hub (`main`) to get the build kit and this document, and the two forks next to it as
+   `~/projects/portainer` and `~/projects/portainer-agent` (plus the `server-ce -> portainer` symlink; see the kit README).
 
 `mchub` doesn't resolve inside WSL. Use the IP that Windows resolves for `mchub.local` (192.168.4.244 at the time):
 `ssh -o HostKeyAlias=mchub sam@<ip>`.
