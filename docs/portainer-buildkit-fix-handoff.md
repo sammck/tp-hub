@@ -16,19 +16,26 @@ Both fixes are written, tested, and pushed to forks in the `mckelvie-org` GitHub
 | 1 | [mckelvie-org/portainer-agent](https://github.com/mckelvie-org/portainer-agent) → `portainer/agent` | The agent's Docker socket proxy (`http/proxy/local.go`) does not relay `101 Switching Protocols`, so BuildKit's h2c upgrade of `/grpc` and `/session` dies (`http2: frame too large`). | `fix/docker-proxy-protocol-upgrade` |
 | 2 | [mckelvie-org/portainer](https://github.com/mckelvie-org/portainer) → `portainer/portainer` | The header allowlist in the server's reverse proxy (`api/http/proxy/factory/reverse_proxy.go`, added in 2.31.0) drops BuildKit's `X-Docker-Expose-Session-*` headers, so sessions are registered with an empty ID (`no active sessions`, then 400 `session  already exists`). | `fix/proxy-buildkit-session-headers` |
 
-**Status:** both fixes are verified end to end on the hub, with images built from source by the forks' own Makefiles and
-published to Docker Hub. The hub runs those images with BuildKit on. The PR branches have trimmed commit messages and
-are current with upstream `develop`. The PR descriptions and issue comments are drafted in
-[upstream-drafts.md](../dev/portainer-buildkit-fix/upstream-drafts.md), waiting for Sam's review.
+**Status (2026-10-17):** both fixes are verified end to end on the hub, with images built from source by the forks' own
+Makefiles and published to Docker Hub; the hub runs those images with BuildKit on. **The upstream PRs are open:**
+
+* agent: [portainer/agent#752](https://github.com/portainer/agent/pull/752)
+* server: [portainer/portainer#13324](https://github.com/portainer/portainer/pull/13324)
+
+Comments with the explanation and links are posted on
+[#13255](https://github.com/portainer/portainer/issues/13255#issuecomment-6241698909) (the main write-up, including the
+Docker Hub test images), [#12754](https://github.com/portainer/portainer/issues/12754#issuecomment-6241699341) and
+[#10562](https://github.com/portainer/portainer/issues/10562#issuecomment-6241699756). The posted text is in
+[upstream-drafts.md](../dev/portainer-buildkit-fix/upstream-drafts.md).
 
 Remaining steps
 ---------------
 
-1. Sam reviews the commits on the two `fix/*` branches and the drafts in
-   [upstream-drafts.md](../dev/portainer-buildkit-fix/upstream-drafts.md).
-2. Open the PRs and post the issue comments in the order given there.
-3. When Portainer releases both fixes, remove the overrides from the hub's `config.yml` (and the `DOCKER_BUILDKIT`
-   workaround from tp-hub), then delete the `build/` and `test/` branches and the Docker Hub images.
+1. Follow up on PR review and issue replies. Portainer staff usually port external PRs internally rather than merging
+   them, so the PRs may be closed with a note that the fix was ported.
+2. When a Portainer release includes both fixes: remove the overrides from the hub's `config.yml` (and the
+   `DOCKER_BUILDKIT` workaround from tp-hub), then delete the `build/` and `test/` fork branches and the Docker Hub
+   images. Keep the `fix/` branches until the PRs are closed.
 
 Branches and images
 -------------------
