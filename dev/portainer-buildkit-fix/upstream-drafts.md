@@ -1,7 +1,9 @@
 Upstream drafts: BuildKit builds through the Portainer Agent
 ===========================================================
 
-Drafts for Sam to review before anything is posted. Nothing here has been submitted.
+All of this was posted on 2026-10-17: portainer/agent#752, portainer/portainer#13324, and comments on #13255, #12754
+and #10562 (links in [docs/portainer-buildkit-fix-handoff.md](../../docs/portainer-buildkit-fix-handoff.md)). The
+`<agent PR>`/`<server PR>` placeholders below were filled in with those numbers when posting.
 
 **Order of posting**
 

@@ -213,16 +213,14 @@ To run stock images instead, set `PORTAINER_IMAGE: portainer/portainer-ce`, `POR
 
 1. Apply the config with `hub build && hub portainer up` (Docker pulls any image it doesn't have).
 2. Clear the BuildKit cache, so the builds are real: `docker builder prune -af`.
-3. Redeploy the jvc-projector stack (stack 3, a git stack from `github.com/sammck/jvc-projector`, branch
-   `modernize-docker-build`): "Pull and redeploy" in the UI, or `PUT /api/stacks/3/git/redeploy?endpointId=3` with the
-   stack's env and reference. Deployments are asynchronous: poll `GET /api/stacks/3` until the last
-   `DeploymentStatus` entry is no longer 3 (1 = done).
-4. For a build longer than the agent's 120 s timeout, create a throwaway stack with
-   `POST /api/stacks/create/standalone/string?endpointId=3` whose compose file builds
-   `FROM busybox` / `RUN sleep 150` via `dockerfile_inline`, then delete it.
+3. Create a throwaway stack with `POST /api/stacks/create/standalone/string?endpointId=3` whose compose file builds
+   `FROM busybox` / `RUN sleep 150` via `dockerfile_inline`. The 150 s step checks that builds outlive the agent's 120 s
+   timeout. Deployments are asynchronous: poll `GET /api/stacks/<id>` until the last `DeploymentStatus` entry is no
+   longer 3 (1 = done). Then delete the stack and its image.
+4. Optionally, also test a git stack, since those pull and rebuild on every redeploy: any small public repo with a
+   `build:` section works. (The jvc-projector stack used in the 2026-10-17 runs has been retired and deleted.)
 5. Success: the Portainer log shows BuildKit progress (`#1 [... internal] load build definition`) and no `Step N/M`,
-   no `frame too large` / `unable to upgrade` / `no active sessions` / `session already exists` anywhere, and
-   `http://<hub>/jvc-projector/api/v1/` returns 200.
+   and there is no `frame too large` / `unable to upgrade` / `no active sessions` / `session already exists` anywhere.
 6. **Rollback** to stock images at any time: set the stock overrides above, then `hub build && hub portainer up`.
 
 API notes: the API is at `http://localhost:9000/portainer/api` on the hub. The token in
@@ -248,7 +246,6 @@ Related state elsewhere
 * tp-hub `main` (since 2026-10-17; the `traefik-v3-rule-syntax` branch was merged and deleted) contains: the traefik
   v2/v3-neutral rules, the `PORTAINER_` prefixed shared variables, the patched-image defaults, these docs, and the
   build kit. The hub's checkout is on `main`, and its untracked `config.yml` pins `traefik_version: "3.7.15"`.
-* jvc-projector branch `modernize-docker-build` (pushed, not merged) contains: python 3.13 / Poetry 2 Dockerfile,
-  committed `poetry.lock`, the `PORTAINER_*` variable names, and the local `jvc-projector:local` image. The Portainer stack
-  deploys from this branch until it is merged; switching the stack back to `main` makes Portainer remove the stack before
-  rebuilding, so expect brief downtime.
+* jvc-projector is retired (2026-10-26): Home Assistant's JVC projector integration replaced it. Its Portainer stack,
+  container and image were deleted from the hub. The repo's unmerged `modernize-docker-build` branch (python 3.13 /
+  Poetry 2 Dockerfile, `PORTAINER_*` variable names) remains on GitHub.
