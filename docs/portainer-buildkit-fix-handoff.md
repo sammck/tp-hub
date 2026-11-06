@@ -1,7 +1,7 @@
 Hand-off: fixing BuildKit builds through the Portainer Agent
 ===========================================================
 
-*Status as of 2026-10-17. This document is meant to let the work continue from another machine without access to the
+*Status as of 2026-11-06. This document is meant to let the work continue from another machine without access to the
 hub's shell history. For the problem description and the `DOCKER_BUILDKIT=0` workaround, see
 [portainer-agent-build-issue.md](portainer-agent-build-issue.md).*
 
@@ -16,17 +16,23 @@ Both fixes are written, tested, and pushed to forks in the `mckelvie-org` GitHub
 | 1 | [mckelvie-org/portainer-agent](https://github.com/mckelvie-org/portainer-agent) → `portainer/agent` | The agent's Docker socket proxy (`http/proxy/local.go`) does not relay `101 Switching Protocols`, so BuildKit's h2c upgrade of `/grpc` and `/session` dies (`http2: frame too large`). | `fix/docker-proxy-protocol-upgrade` |
 | 2 | [mckelvie-org/portainer](https://github.com/mckelvie-org/portainer) → `portainer/portainer` | The header allowlist in the server's reverse proxy (`api/http/proxy/factory/reverse_proxy.go`, added in 2.31.0) drops BuildKit's `X-Docker-Expose-Session-*` headers, so sessions are registered with an empty ID (`no active sessions`, then 400 `session  already exists`). | `fix/proxy-buildkit-session-headers` |
 
-**Status (2026-10-17):** both fixes are verified end to end on the hub, with images built from source by the forks' own
-Makefiles and published to Docker Hub; the hub runs those images with BuildKit on. **The upstream PRs are open:**
+**Status (2026-11-06):** the hub runs Portainer **2.45.3** (a security release) built from our forks as
+`2.45.3-mck`, with BuildKit on. Both BuildKit fixes are verified end to end there. The patch set also has a third fix,
+for Docker disk usage on agent environments ([#13296](https://github.com/portainer/portainer/issues/13296)), verified
+on the hub (API and UI). **Upstream PRs, all open without replies so far:**
 
-* agent: [portainer/agent#752](https://github.com/portainer/agent/pull/752)
+* agent: [portainer/agent#752](https://github.com/portainer/agent/pull/752) (rebased for 2.45.3 on 2026-11-06: its
+  test file is now `local_upgrade_test.go`, since 2.45.3 added its own `local_test.go`)
 * server: [portainer/portainer#13324](https://github.com/portainer/portainer/pull/13324)
+* server: [portainer/portainer#13349](https://github.com/portainer/portainer/pull/13349) (agent host auth, #13296)
 
 Comments with the explanation and links are posted on
-[#13255](https://github.com/portainer/portainer/issues/13255#issuecomment-6241698909) (the main write-up, including the
-Docker Hub test images), [#12754](https://github.com/portainer/portainer/issues/12754#issuecomment-6241699341) and
-[#10562](https://github.com/portainer/portainer/issues/10562#issuecomment-6241699756). The posted text is in
-[upstream-drafts.md](../dev/portainer-buildkit-fix/upstream-drafts.md).
+[#13255](https://github.com/portainer/portainer/issues/13255#issuecomment-6241698909) (the main write-up, plus
+[a 2.45.3 update](https://github.com/portainer/portainer/issues/13255#issuecomment-6697144348)),
+[#12754](https://github.com/portainer/portainer/issues/12754#issuecomment-6241699341),
+[#10562](https://github.com/portainer/portainer/issues/10562#issuecomment-6241699756) and
+[#13296](https://github.com/portainer/portainer/issues/13296#issuecomment-6697403421). The text of the BuildKit posts
+is in [upstream-drafts.md](../dev/portainer-buildkit-fix/upstream-drafts.md).
 
 Remaining steps
 ---------------
@@ -42,21 +48,22 @@ Branches and images
 
 | Fork branch | Base | Purpose |
 |---|---|---|
-| `fix/docker-proxy-protocol-upgrade` (agent, `38bb455`) | upstream `develop` | PR branch |
-| `fix/proxy-buildkit-session-headers` (server, `658a3eae6`) | upstream `develop` | PR branch |
-| `build/2.45.2-buildkit-fix` (agent `c8def40`, server `dc32cb97d`) | tag `2.45.2` | What the Docker Hub images are built from: the release plus the fix, nothing else |
+| `fix/docker-proxy-protocol-upgrade` (agent, `a1dd993`) | upstream `develop` | PR #752 |
+| `fix/proxy-buildkit-session-headers` (server, `658a3eae6`) | upstream `develop` | PR #13324 |
+| `fix/agent-host-proxy-auth` (server, `9d41e7b46`) | upstream `develop` | PR #13349 |
+| `build/2.45.3-mck` (agent `7943239`, server `3bec65fbc`) | tag `2.45.3` | What the current Docker Hub images are built from: the release plus every `fix/*` commit |
+| `build/2.45.3-buildkit-fix`, `build/2.45.2-buildkit-fix` | tags `2.45.3`, `2.45.2` | Earlier builds (BuildKit fixes only); kept while their images may still be needed |
 
-PRs include only their own branch's commits, so the `build/` branches never end up in a PR. (The earlier `test/*`
-branches, including the debug-logging build, were deleted on 2026-10-17.) The fix diffs
-on `fix/*` and `build/*` are identical.
+PRs include only their own branch's commits, so the `build/` branches never end up in a PR.
 
 Docker Hub images (public, linux/arm64 only), built from the `build/` branches:
 
-* `sammck/portainer-ce:2.45.2-buildkit-fix` (also `…-dc32cb9`)
-* `sammck/portainer-agent:2.45.2-buildkit-fix` (also `…-c8def40`)
+* current: `sammck/portainer-ce:2.45.3-mck` (also `…-3bec65f`), `sammck/portainer-agent:2.45.3-mck` (also `…-7943239`)
+* earlier: `2.45.3-buildkit-fix` and `2.45.2-buildkit-fix` (BuildKit fixes only)
 
-They report version "2.45.2 LTS" like the official release; `GET /api/system/version` shows
-`Build.ImageTag: 2.45.2-buildkit-fix` and `Build.GitCommit: dc32cb97d`.
+They report version "2.45.3 LTS" like the official release. The build is identifiable in the UI's About box (click the
+version in the sidebar) and in `GET /api/system/version`: `Build.ImageTag: 2.45.3-mck`, `Build.GitCommit: 3bec65fbc`.
+The 2.45.3 CA bundle is byte-identical to the official 2.45.3 image's (the four emSign/eMudhra roots are removed).
 
 Building the images
 -------------------
@@ -197,7 +204,7 @@ overridden under `portainer_stack_env` in the hub's `config.yml` (not tracked in
 | Variable | Purpose | Default |
 |---|---|---|
 | `PORTAINER_IMAGE` | Portainer server image repository | `sammck/portainer-ce` |
-| `PORTAINER_VERSION` | Portainer server image tag | `config.portainer_version`, default `2.45.2-buildkit-fix` |
+| `PORTAINER_VERSION` | Portainer server image tag | `config.portainer_version`, default `2.45.3-mck` |
 | `PORTAINER_AGENT_IMAGE` | Agent image repository | `sammck/portainer-agent` |
 | `PORTAINER_AGENT_VERSION` | Agent image tag | `${PORTAINER_VERSION}` |
 | `PORTAINER_DOCKER_BUILDKIT` | `DOCKER_BUILDKIT` for the Portainer server: `1` = BuildKit, `0` = classic-builder workaround (needed with stock images) | `1` |
