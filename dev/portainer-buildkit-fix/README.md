@@ -8,6 +8,44 @@ Today that is the pair of BuildKit-through-the-agent fixes (portainer/agent#752,
 background, test results and hub setup are in
 [docs/portainer-buildkit-fix-handoff.md](../../docs/portainer-buildkit-fix-handoff.md).
 
+In progress: update to 2.45.3 (started 2026-11-06)
+--------------------------------------------------
+
+Portainer 2.45.3 LTS (2026-10-21) is a security release: it drops trust in the compromised eMudhra CAs
+(CVE-2026-111943) and moves to Go 1.26.10. The hub still runs `2.45.2-buildkit-fix`. Builds and pushes are done on the
+dev box; this note was left by a Claude session on the hub.
+
+Done:
+
+* `56e5ff3`: `Dockerfile.builder` uses Go 1.26.10 (2.45.3's `go.mod` requires it), and `build.sh` builds with
+  `--pull`. The eMudhra CA removal lives in the untagged `FROM portainer/base`, so a stale cached base image would
+  silently keep the compromised CAs.
+* Checked: the server fix applies unchanged (`reverse_proxy.go` is identical in 2.45.3).
+
+To do:
+
+1. **The agent fix conflicts with 2.45.3.** Upstream 2.45.3 added its own `http/proxy/local_test.go` (BE-13547, a
+   change to `local.go` for empty bodies over HTTP/2), and our fix commit creates a file with the same name. The
+   `local.go` part merges cleanly. Fix: on `fix/docker-proxy-protocol-upgrade`, rename our test file and amend the commit:
+
+   ```bash
+   git switch fix/docker-proxy-protocol-upgrade && git pull
+   git mv http/proxy/local_test.go http/proxy/local_upgrade_test.go && git commit --amend --no-edit
+   ```
+
+   With that, the commit applies cleanly to 2.45.3 and both test files coexist. **This branch is the source of the
+   open PR portainer/agent#752**, so the force-push shows up on the PR: get Sam's OK before pushing.
+2. `dev/portainer-buildkit-fix/update.sh 2.45.3`: creates `build/2.45.3-buildkit-fix`, runs the tests, and builds and
+   pushes `sammck/portainer-ce` and `sammck/portainer-agent` as `2.45.3-buildkit-fix`.
+3. Check that the eMudhra roots are gone from the new image:
+   `docker run --rm --entrypoint cat sammck/portainer-ce:2.45.3-buildkit-fix /etc/ssl/certs/ca-certificates.crt | grep -ci emsign`
+   should print `0` (compare with the `2.45.2-buildkit-fix` image).
+4. Make `2.45.3-buildkit-fix` tp-hub's default (`update.sh` prints where), deploy on the hub, and run the end-to-end test
+   in [docs/portainer-buildkit-fix-handoff.md](../../docs/portainer-buildkit-fix-handoff.md). jvc-projector is retired,
+   so use the throwaway build stack described there.
+
+Remove this section when done.
+
 Why a fork
 ----------
 
