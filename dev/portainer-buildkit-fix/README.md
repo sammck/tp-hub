@@ -125,3 +125,5 @@ Gotchas
 * `update.sh` stops if a test log has no results (e.g. Docker Desktop not running); before 2026-11-06 that silently
   counted as "no new failures". Docker Desktop is installed under `D:\Users\sammc\AppData\Local\Programs\DockerDesktop`.
 * `pkill -f <pattern>` also matches the shell running it; kill builds by PID.
+* Portainer serves its UI page with `Cache-Control: max-age=31536000`, so after deploying a build that changes the UI,
+  browsers keep showing the old UI until a refresh (or hard refresh).
