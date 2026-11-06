@@ -37,7 +37,9 @@ build_image() {
   local commit; commit=$(git -C "$dir" rev-parse HEAD)
   local output=(--push)
   [ "$PUSH" = 1 ] || output=(--load)
-  docker buildx build --platform "linux/$ARCH" -f "$dir/build/linux/Dockerfile" \
+  # --pull: the CA bundle comes from the untagged `FROM portainer/base`, so a stale cached base image would silently
+  # ship outdated trust roots (2.45.3 removed the compromised eMudhra CAs there)
+  docker buildx build --pull --platform "linux/$ARCH" -f "$dir/build/linux/Dockerfile" \
     --build-arg "GIT_COMMIT=$commit" --build-arg "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --label "org.opencontainers.image.source=$(git -C "$repo" remote get-url origin)" \
     -t "$REGISTRY/$name:$TAG" -t "$REGISTRY/$name:$TAG-${commit:0:7}" \

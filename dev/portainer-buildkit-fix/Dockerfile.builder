@@ -1,7 +1,7 @@
 # Toolchain for building Portainer CE and the Portainer Agent from source with their own Makefiles:
 # Go (both), plus Node and pnpm (the server's client build, and build/build_binary.sh records their versions).
 # Versions follow server-ce/package.json (engines.node, packageManager) and go.mod.
-ARG GO_IMAGE=golang:1.26.6-bookworm
+ARG GO_IMAGE=golang:1.26.10-bookworm
 ARG NODE_IMAGE=node:22.22.1-bookworm-slim
 ARG PNPM_VERSION=10.26.2
 ARG DOCKER_CLI_IMAGE=docker:29.4-cli
