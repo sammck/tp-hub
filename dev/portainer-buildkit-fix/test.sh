@@ -5,7 +5,7 @@
 # (see common.sh), so your working checkouts are not touched. See README.md in this directory.
 #
 # Environment variables (all optional; see also common.sh for SERVER_REPO, AGENT_REPO, CACHE_DIR):
-#   REF          Branch/ref/tag to test in both forks (default: build/2.45.2-buildkit-fix). Use REF=2.45.2 for a
+#   REF          Branch/ref/tag to test in both forks (default: build/2.45.3-mck). Use REF=2.45.2 for a
 #                baseline of the unpatched release, to tell pre-existing failures from new ones.
 #   COMPONENTS   "server agent" (default), "server" or "agent"
 #   PACKAGES     Go packages to test (default: ./...)
@@ -18,7 +18,7 @@
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-REF=${REF:-build/2.45.2-buildkit-fix}
+REF=${REF:-build/2.45.3-mck}
 COMPONENTS=${COMPONENTS:-server agent}
 PACKAGES=${PACKAGES:-./...}
 DOCKER=${DOCKER:-1}
@@ -40,7 +40,7 @@ run_tests() {
   return $rc
 }
 
-ref_slug=${REF//\//-}
+ref_slug=${REF//\//-}${LOG_SUFFIX:-}    # LOG_SUFFIX keeps e.g. update.sh retries from overwriting the full-run log
 rc=0
 checkout_wt server "$REF" || exit 1    # the agent tests build against ../server-ce too
 if [[ " $COMPONENTS " == *" server "* ]]; then

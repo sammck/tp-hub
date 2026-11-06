@@ -49,8 +49,8 @@ from ..internal_types import *
 TRAEFIK_DEFAULT_VERSION = "2.10.4"
 # tp-hub runs Portainer CE and the Agent built from our forks (github.com/mckelvie-org/portainer and
 # .../portainer-agent), which carry fixes upstream hasn't released; see dev/portainer-buildkit-fix/README.md.
-# Image tags are the upstream CE version plus a suffix naming our fixes, e.g. "2.45.2-buildkit-fix".
-PORTAINER_DEFAULT_VERSION = "2.45.3-buildkit-fix"
+# Image tags are the upstream CE version plus "-mck" for our patch set, e.g. "2.45.3-mck".
+PORTAINER_DEFAULT_VERSION = "2.45.3-mck"
 PORTAINER_DEFAULT_IMAGE = "sammck/portainer-ce"
 PORTAINER_DEFAULT_AGENT_IMAGE = "sammck/portainer-agent"
 # The patched images can run BuildKit builds through the agent; "0" falls back to Docker's classic builder
@@ -205,10 +205,10 @@ class HubSettings(BaseSettings):
 
     portainer_version: str = Field(default=None, description=usl(
         f"""The Portainer server and agent image tag to use: the upstream CE version plus the suffix of
-            our patched build, e.g. "2.45.2-buildkit-fix". Defaults to PORTAINER_DEFAULT_VERSION."""
+            our patched build, e.g. "2.45.3-mck". Defaults to PORTAINER_DEFAULT_VERSION."""
       ))
     """The Portainer server and agent image tag to use: the upstream CE version plus the suffix of
-       our patched build, e.g. "2.45.2-buildkit-fix". Defaults to PORTAINER_DEFAULT_VERSION."""
+       our patched build, e.g. "2.45.3-mck". Defaults to PORTAINER_DEFAULT_VERSION."""
 
     @validator('portainer_version', pre=True, always=True)
     def portainer_version_validator(cls, v, values, **kwargs):

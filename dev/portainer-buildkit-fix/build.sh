@@ -12,10 +12,10 @@
 #   ARCH             Target architecture (default: arm64). One image per run; Portainer's own Dockerfiles take one
 #                    architecture's dist/ at a time.
 #   COMPONENTS       Which images to build: "server agent", "server" or "agent" (default: "server agent")
-#   REF              Branch/ref to build in both forks (default: build/2.45.2-buildkit-fix, i.e. tag 2.45.2 + the fix).
+#   REF              Branch/ref to build in both forks (default: build/2.45.3-mck, i.e. tag 2.45.3 + our fixes).
 #                    A local branch wins over origin/REF.
 #   REGISTRY         Image namespace (default: docker.io/sammck)
-#   TAG              Image tag (default: 2.45.2-buildkit-fix). Each image is also tagged $TAG-<short commit>.
+#   TAG              Image tag (default: 2.45.3-mck). Each image is also tagged $TAG-<short commit>.
 #   PUSH             1 (default) to push to $REGISTRY, 0 to load the images into the local Docker instead
 #                    (only possible when ARCH matches what the local Docker can load).
 #   SYNC             1 (default) to fetch both forks and upstream first; 0 to use what the clones have
@@ -25,9 +25,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 ARCH=${ARCH:-arm64}
 COMPONENTS=${COMPONENTS:-server agent}
-REF=${REF:-build/2.45.2-buildkit-fix}
+REF=${REF:-build/2.45.3-mck}
 REGISTRY=${REGISTRY:-docker.io/sammck}
-TAG=${TAG:-2.45.2-buildkit-fix}
+TAG=${TAG:-2.45.3-mck}
 PUSH=${PUSH:-1}
 SYNC=${SYNC:-1}
 

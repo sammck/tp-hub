@@ -9,7 +9,8 @@
 #
 # Environment variables (all optional; see also common.sh for SERVER_REPO, AGENT_REPO, CACHE_DIR):
 #   TAG_PATTERN    Release line to follow when TAG is not given (default: 2.45.*)
-#   SUFFIX         Branch and image tag suffix (default: buildkit-fix): branch build/<tag>-<suffix>, image <tag>-<suffix>
+#   SUFFIX         Branch and image tag suffix (default: mck, i.e. "our patch set"): branch build/<tag>-<suffix>,
+#                  image <tag>-<suffix>
 #   FIX_BRANCHES   Fork branches whose commits are our fixes, applied in this order (default: every fix/* branch,
 #                  local or origin/; a local branch wins). Each branch's commits are those not in upstream/develop.
 #   SKIP_TESTS     1 to skip the test suites
@@ -20,7 +21,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
 TAG_PATTERN=${TAG_PATTERN:-2.45.*}
-SUFFIX=${SUFFIX:-buildkit-fix}
+SUFFIX=${SUFFIX:-mck}
 SKIP_TESTS=${SKIP_TESTS:-0}
 PUSH=${PUSH:-1}
 export ARCH=${ARCH:-arm64}
@@ -86,7 +87,7 @@ if [ "$SKIP_TESTS" != 1 ]; then
       # A package that fails only with our fixes: retry it, since some upstream tests are flaky
       passed=0
       for _ in 1 2 3; do
-        if REF="$BRANCH" COMPONENTS=$component PACKAGES="$pkg" "$SCRIPT_DIR/test.sh" >/dev/null 2>&1; then
+        if REF="$BRANCH" COMPONENTS=$component PACKAGES="$pkg" LOG_SUFFIX=-retry "$SCRIPT_DIR/test.sh" >/dev/null 2>&1; then
           passed=1; break
         fi
       done
