@@ -10,8 +10,8 @@
 # Environment variables (all optional; see also common.sh for SERVER_REPO, AGENT_REPO, CACHE_DIR):
 #   TAG_PATTERN    Release line to follow when TAG is not given (default: 2.45.*)
 #   SUFFIX         Branch and image tag suffix (default: buildkit-fix): branch build/<tag>-<suffix>, image <tag>-<suffix>
-#   FIX_BRANCHES   Fork branches whose commits are our fixes, applied in this order (default: every origin/fix/*
-#                  branch). Each branch's commits are those not in upstream/develop.
+#   FIX_BRANCHES   Fork branches whose commits are our fixes, applied in this order (default: every fix/* branch,
+#                  local or origin/; a local branch wins). Each branch's commits are those not in upstream/develop.
 #   SKIP_TESTS     1 to skip the test suites
 #   PUSH           1 (default) to push images and branches; 0 to build and load locally only
 #   ARCH           Passed to build.sh (default: arm64)
@@ -41,7 +41,11 @@ for component in "${COMPONENTS_ORDER[@]}"; do
     exit 1
   fi
   checkout_wt "$component" "$TAG" >/dev/null
-  fixes=${FIX_BRANCHES:-$(git -C "$repo" for-each-ref --format='%(refname:short)' 'refs/remotes/origin/fix/*')}
+  # Every fix/* branch, local or on origin; a local branch wins (e.g. a fix amended for a new release, not pushed yet)
+  fixes=${FIX_BRANCHES:-$(git -C "$repo" for-each-ref --format='%(refname:lstrip=-2)' 'refs/heads/fix/*' 'refs/remotes/origin/fix/*' \
+    | sort -u | while read -r b; do
+        if git -C "$repo" rev-parse --verify --quiet "refs/heads/$b" >/dev/null; then echo "$b"; else echo "origin/$b"; fi
+      done)}
   git -C "$wt" checkout --quiet -B "$BRANCH" "$TAG"
   for fix in $fixes; do
     commits=$(git -C "$repo" rev-list --reverse "upstream/develop..$fix")
@@ -63,9 +67,17 @@ failing_packages() { grep -hE '^FAIL\s+\S+' "$@" 2>/dev/null | awk '{print $2}' 
 
 if [ "$SKIP_TESTS" != 1 ]; then
   echo "Running test suites on $BRANCH and on $TAG (baseline)..."
+  rm -f "$LOG_DIR"/test-{server,agent}-{"${BRANCH//\//-}","$TAG"}.log
   REF="$BRANCH" "$SCRIPT_DIR/test.sh" >/dev/null || true
   REF="$TAG" "$SCRIPT_DIR/test.sh" >/dev/null || true
   slug_new=${BRANCH//\//-}
+  # An empty or missing log means the tests didn't run at all (e.g. Docker down), which must not pass as "no failures"
+  for log in "$LOG_DIR"/test-{server,agent}-{"$slug_new","$TAG"}.log; do
+    if ! grep -qE '^(ok|FAIL)\s' "$log" 2>/dev/null; then
+      echo "No test results in $log; the tests did not run. Not building or pushing." >&2
+      exit 1
+    fi
+  done
   new_failures=()
   for component in "${COMPONENTS_ORDER[@]}"; do
     extra=$(comm -23 <(failing_packages "$LOG_DIR/test-$component-$slug_new.log") \

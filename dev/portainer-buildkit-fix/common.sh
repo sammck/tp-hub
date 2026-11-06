@@ -55,6 +55,10 @@ checkout_wt() {
 }
 
 ensure_builder() {
+  if ! docker version >/dev/null 2>&1; then
+    echo "Docker is not reachable (is Docker Desktop running?)" >&2
+    exit 1
+  fi
   docker build -q -f "$COMMON_DIR/Dockerfile.builder" -t "$BUILDER_IMAGE" "$COMMON_DIR" >/dev/null
 }
 

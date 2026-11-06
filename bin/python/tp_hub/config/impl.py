@@ -50,7 +50,7 @@ TRAEFIK_DEFAULT_VERSION = "2.10.4"
 # tp-hub runs Portainer CE and the Agent built from our forks (github.com/mckelvie-org/portainer and
 # .../portainer-agent), which carry fixes upstream hasn't released; see dev/portainer-buildkit-fix/README.md.
 # Image tags are the upstream CE version plus a suffix naming our fixes, e.g. "2.45.2-buildkit-fix".
-PORTAINER_DEFAULT_VERSION = "2.45.2-buildkit-fix"
+PORTAINER_DEFAULT_VERSION = "2.45.3-buildkit-fix"
 PORTAINER_DEFAULT_IMAGE = "sammck/portainer-ce"
 PORTAINER_DEFAULT_AGENT_IMAGE = "sammck/portainer-agent"
 # The patched images can run BuildKit builds through the agent; "0" falls back to Docker's classic builder

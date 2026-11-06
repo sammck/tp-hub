@@ -4,7 +4,7 @@ version: "3.3"
 #
 #  Environment Variables:
 #    PORTAINER_VERSION       The Portainer image tag to use: the upstream CE version plus the suffix of our patched
-#                            build. Defaults to 2.45.2-buildkit-fix.
+#                            build. Defaults to 2.45.3-buildkit-fix.
 #    PORTAINER_IMAGE         The Portainer server image repository to use. Defaults to sammck/portainer-ce, Portainer CE
 #                            built from our fork with fixes upstream hasn't released (dev/portainer-buildkit-fix/README.md).
 #                            Set to portainer/portainer-ce (with PORTAINER_VERSION) for the stock image.
@@ -79,7 +79,7 @@ services:
     # A portainer agent that provides access to docker on the local host.
     # also allows docker volumes to be browsed and edited. Only used by
     # portainer
-    image: ${PORTAINER_AGENT_IMAGE:-sammck/portainer-agent}:${PORTAINER_AGENT_VERSION:-${PORTAINER_VERSION:-2.45.2-buildkit-fix}}
+    image: ${PORTAINER_AGENT_IMAGE:-sammck/portainer-agent}:${PORTAINER_AGENT_VERSION:-${PORTAINER_VERSION:-2.45.3-buildkit-fix}}
     environment:
       # REQUIRED: Should be equal to the service name prefixed by "tasks." when
       # deployed inside an overlay network
@@ -103,7 +103,7 @@ services:
     restart: always
 
   portainer:
-    image: ${PORTAINER_IMAGE:-sammck/portainer-ce}:${PORTAINER_VERSION:-2.45.2-buildkit-fix}
+    image: ${PORTAINER_IMAGE:-sammck/portainer-ce}:${PORTAINER_VERSION:-2.45.3-buildkit-fix}
     extends:
       # This deep-merges in the contents of injected-env-vars.yml (which are auto-generated)
       # into this docker-compose.yml.
