@@ -35,13 +35,15 @@ SYNC=${SYNC:-1}
 build_image() {
   local dir=$1 name=$2 repo=$3
   local commit; commit=$(git -C "$dir" rev-parse HEAD)
+  # The clones use SSH remotes; the image's source label should be a browsable URL
+  local source; source=$(git -C "$repo" remote get-url origin | sed -E 's#^git@([^:]+):#https://\1/#; s#\.git$##')
   local output=(--push)
   [ "$PUSH" = 1 ] || output=(--load)
   # --pull: the CA bundle comes from the untagged `FROM portainer/base`, so a stale cached base image would silently
   # ship outdated trust roots (2.45.3 removed the compromised eMudhra CAs there)
   docker buildx build --pull --platform "linux/$ARCH" -f "$dir/build/linux/Dockerfile" \
     --build-arg "GIT_COMMIT=$commit" --build-arg "BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --label "org.opencontainers.image.source=$(git -C "$repo" remote get-url origin)" \
+    --label "org.opencontainers.image.source=$source" \
     -t "$REGISTRY/$name:$TAG" -t "$REGISTRY/$name:$TAG-${commit:0:7}" \
     "${output[@]}" "$dir"
   images+=("$REGISTRY/$name:$TAG ($REGISTRY/$name:$TAG-${commit:0:7})")

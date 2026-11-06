@@ -6,13 +6,14 @@ tp-hub uses these images by default: `sammck/portainer-ce` and `sammck/portainer
 version plus `-mck` for our patch set (e.g. `2.45.3-mck`; each build is also tagged `2.45.3-mck-<commit>`). Before
 2026-11-06 the suffix was `-buildkit-fix`.
 
-The patch set (the `fix/*` branches):
+The patch set (the `fix/*` and `fork/*` branches):
 
 | Fix | Fork branch | Upstream |
 |---|---|---|
 | Agent relays `101 Switching Protocols` (BuildKit builds through the agent) | agent `fix/docker-proxy-protocol-upgrade` | PR portainer/agent#752 |
 | Server forwards BuildKit's `X-Docker-Expose-Session-*` headers | server `fix/proxy-buildkit-session-headers` | PR portainer/portainer#13324 |
-| Server authenticates `/endpoints/{id}/agent/host/*` (Docker disk usage for agent environments) | server `fix/agent-host-proxy-auth` | issue portainer/portainer#13296 |
+| Server authenticates `/endpoints/{id}/agent/host/*` (Docker disk usage for agent environments) | server `fix/agent-host-proxy-auth` | PR portainer/portainer#13349 (issue #13296) |
+| UI version label shows our image tag (`2.45.3-mck LTS`) | server `fork/version-label` | none (fork only) |
 
 Background, test results and hub setup are in
 [docs/portainer-buildkit-fix-handoff.md](../../docs/portainer-buildkit-fix-handoff.md).
@@ -54,7 +55,12 @@ Branch conventions:
   cleanly onto any 2.x-based code. When a new release conflicts with a fix, amend the fix (as for 2.45.3, which needed
   the agent fix's test file renamed); a local `fix/` branch wins over `origin/`, so you can build with the amended
   commit before pushing it.
-* `build/<tag>-<suffix>`: an upstream release tag plus every `fix/*` branch's commits. Images are built from these.
+* `fork/<name>`: like `fix/*`, but for changes to our builds only, never proposed upstream. Currently
+  `fork/version-label` (server): the sidebar version label and About box show the image tag (e.g. `2.45.3-mck LTS`)
+  when it is the version plus a suffix. Only the displayed text changes; the server version itself stays a plain
+  release version, because database migrations and agent compatibility checks compare it.
+* `build/<tag>-<suffix>`: an upstream release tag plus every `fix/*` and `fork/*` branch's commits. Images are built
+  from these.
 * `test/*`: one-off experiments (none currently). Delete when done.
 
 Workflow
@@ -68,7 +74,7 @@ dev/portainer-buildkit-fix/update.sh            # newest 2.45.x tag; or: update.
 
 `update.sh`:
 
-1. creates `build/<tag>-mck` in both forks: the tag plus the `fix/*` commits. A fix that upstream already
+1. creates `build/<tag>-mck` in both forks: the tag plus the `fix/*` and `fork/*` commits. A fix that upstream already
    contains is dropped automatically; a fix that no longer applies stops the script;
 2. runs both test suites on the new branch and on the plain tag, and fails only on packages that fail with our fixes
    but not without them (retrying those 3 times, since a few upstream tests are flaky);

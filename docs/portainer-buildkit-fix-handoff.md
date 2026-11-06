@@ -51,18 +51,21 @@ Branches and images
 | `fix/docker-proxy-protocol-upgrade` (agent, `a1dd993`) | upstream `develop` | PR #752 |
 | `fix/proxy-buildkit-session-headers` (server, `658a3eae6`) | upstream `develop` | PR #13324 |
 | `fix/agent-host-proxy-auth` (server, `9d41e7b46`) | upstream `develop` | PR #13349 |
-| `build/2.45.3-mck` (agent `7943239`, server `3bec65fbc`) | tag `2.45.3` | What the current Docker Hub images are built from: the release plus every `fix/*` commit |
+| `fork/version-label` (server, `bfb4cc458`) | upstream `develop` | Fork only, never upstream: the UI shows `2.45.3-mck LTS`, and the About box links the image tag (Docker Hub) and commit (GitHub) |
+| `build/2.45.3-mck` (agent `9763733`, server `d1e5b3fd8`) | tag `2.45.3` | What the current Docker Hub images are built from: the release plus every `fix/*` and `fork/*` commit |
 | `build/2.45.3-buildkit-fix`, `build/2.45.2-buildkit-fix` | tags `2.45.3`, `2.45.2` | Earlier builds (BuildKit fixes only); kept while their images may still be needed |
 
 PRs include only their own branch's commits, so the `build/` branches never end up in a PR.
 
 Docker Hub images (public, linux/arm64 only), built from the `build/` branches:
 
-* current: `sammck/portainer-ce:2.45.3-mck` (also `…-3bec65f`), `sammck/portainer-agent:2.45.3-mck` (also `…-7943239`)
+* current: `sammck/portainer-ce:2.45.3-mck` (also `…-d1e5b3f`), `sammck/portainer-agent:2.45.3-mck` (also `…-9763733`).
+  Both Docker Hub repos have a short description and an Overview linking the GitHub forks.
 * earlier: `2.45.3-buildkit-fix` and `2.45.2-buildkit-fix` (BuildKit fixes only)
 
-They report version "2.45.3 LTS" like the official release. The build is identifiable in the UI's About box (click the
-version in the sidebar) and in `GET /api/system/version`: `Build.ImageTag: 2.45.3-mck`, `Build.GitCommit: 3bec65fbc`.
+The server version stays "2.45.3" (it must, for database migrations and agent checks), but the UI displays
+"2.45.3-mck LTS" (`fork/version-label`); click it for the About box. `GET /api/system/version` shows
+`Build.ImageTag: 2.45.3-mck` and `Build.GitCommit: d1e5b3fd8`.
 The 2.45.3 CA bundle is byte-identical to the official 2.45.3 image's (the four emSign/eMudhra roots are removed).
 
 Building the images

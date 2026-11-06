@@ -11,8 +11,9 @@
 #   TAG_PATTERN    Release line to follow when TAG is not given (default: 2.45.*)
 #   SUFFIX         Branch and image tag suffix (default: mck, i.e. "our patch set"): branch build/<tag>-<suffix>,
 #                  image <tag>-<suffix>
-#   FIX_BRANCHES   Fork branches whose commits are our fixes, applied in this order (default: every fix/* branch,
-#                  local or origin/; a local branch wins). Each branch's commits are those not in upstream/develop.
+#   FIX_BRANCHES   Fork branches whose commits are our changes, applied in this order (default: every fix/* branch,
+#                  for upstreamable fixes, and fork/* branch, for changes to our builds only; local or origin/, a
+#                  local branch wins). Each branch's commits are those not in upstream/develop.
 #   SKIP_TESTS     1 to skip the test suites
 #   PUSH           1 (default) to push images and branches; 0 to build and load locally only
 #   ARCH           Passed to build.sh (default: arm64)
@@ -42,8 +43,10 @@ for component in "${COMPONENTS_ORDER[@]}"; do
     exit 1
   fi
   checkout_wt "$component" "$TAG" >/dev/null
-  # Every fix/* branch, local or on origin; a local branch wins (e.g. a fix amended for a new release, not pushed yet)
-  fixes=${FIX_BRANCHES:-$(git -C "$repo" for-each-ref --format='%(refname:lstrip=-2)' 'refs/heads/fix/*' 'refs/remotes/origin/fix/*' \
+  # Every fix/* (upstreamable fixes) and fork/* (changes for our builds only) branch, local or on origin; a local
+  # branch wins (e.g. a fix amended for a new release, not pushed yet)
+  fixes=${FIX_BRANCHES:-$(git -C "$repo" for-each-ref --format='%(refname:lstrip=-2)' \
+      'refs/heads/fix/*' 'refs/remotes/origin/fix/*' 'refs/heads/fork/*' 'refs/remotes/origin/fork/*' \
     | sort -u | while read -r b; do
         if git -C "$repo" rev-parse --verify --quiet "refs/heads/$b" >/dev/null; then echo "$b"; else echo "origin/$b"; fi
       done)}
